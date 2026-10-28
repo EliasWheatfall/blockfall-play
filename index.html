@@ -4703,7 +4703,8 @@ function fbm2(x,z,o){let s=0,a=1,f=1,t=0;for(let i=0;i<o;i++){s+=a*NZ.n2(x*f,z*f
 // light = emitted block light (0..1).
 const B={AIR:0,GRASS:1,DIRT:2,STONE:3,COBBLE:4,LOG:5,LEAVES:6,SAND:7,COAL:8,IRON:9,GOLD:10,DIAMOND:11,PLANKS:12,GLASS:13,BRICK:14,LANTERN:15,BEDROCK:16,WATER:17,SNOW:18,CHARGE:19,CINDER:20,MAGMA:21,EMBERITE:22,DOOR:23,DOOR_TOP:24,DOOR_OPEN:25,DOOR_TOP_OPEN:26,CHEST:27,WAYSTONE:28,VOLTITE:29,VOLTSTEEL:30,VOIDTURF:31,VOIDSHALE:32,LURE:33,TROPHY:34,BANNER:35,VOIDGLASS:36,RUNEBRICK:37,SANDTILE:38,SHELF:39,STARROCK:40,STARGOO:41,
   // M27 shaped blocks: half-height slabs and stairs (4 facing variants each; the variants drop the base _STAIR item)
-  PLANK_SLAB:42,COBBLE_SLAB:43,RUNE_SLAB:44,PLANK_STAIR:45,COBBLE_STAIR:49,RUNE_STAIR:53};
+  PLANK_SLAB:42,COBBLE_SLAB:43,RUNE_SLAB:44,PLANK_STAIR:45,COBBLE_STAIR:49,RUNE_STAIR:53,
+  GRAVEL:57}; // M31
 const BLOCK_TABLE=[
  // id          name            tiles                                   hard     tier drop        solid opaque light
  [B.AIR,       'Air',          ['dirt','dirt','dirt'],                   0,       0,  0,          0,    0,     0],
@@ -4763,6 +4764,8 @@ const BLOCK_TABLE=[
  // star-goo set in the rock (an ore: breaks into diamonds, tier 1 pick)
  [B.STARROCK,  'Starfall Rock',['starrock','starrock','starrock'],       2.2,     1,  B.STARROCK, 1,    1,     0.3],
  [B.STARGOO,   'Star Goo Ore', ['stargoo','stargoo','stargoo'],          2.0,     1,  'diamond',  1,    1,     0.7],
+ // M31 gravel: loose rounded pebbles on riverbeds/beaches, under the sand and in cave pockets; sometimes breaks into flint (GRAVEL_FLINT)
+ [B.GRAVEL,    'Gravel',       ['gravel','gravel','gravel'],             0.6,     0,  B.GRAVEL,   1,    1,     0],
 ];
 // M27 slabs + stairs: reuse the base block's textures/hardness; solid (collision uses SHAPES boxes), non-opaque (neighbours keep faces)
 const SHAPED_BASES=[[B.PLANKS,B.PLANK_SLAB,B.PLANK_STAIR],[B.COBBLE,B.COBBLE_SLAB,B.COBBLE_STAIR],[B.RUNEBRICK,B.RUNE_SLAB,B.RUNE_STAIR]];
@@ -4782,7 +4785,8 @@ BLOCKS.forEach((d,i)=>{SOLID[i]=d.solid?1:0;OPAQ[i]=d.opaque?1:0;});
 
 // ===== core/data/gameplay.js =====
 // ================= DATA: items, weapons, recipes, stats =================
-const RESOURCES=['coal','iron','gold','diamond','ember','voltite','ammo','cell','grenade','grapple'];
+const RESOURCES=['coal','iron','gold','diamond','ember','voltite','ammo','cell','grenade','grapple','flint'];
+const GRAVEL_FLINT=0.15; // M31: chance a mined gravel block gives 1 flint instead of itself
 // Charged Grapple tuning (see core/grapple.js)
 const GRAPPLE={range:26,voidRange:40,cellCost:2,voidCost:0,pull:22,accel:9,maxT:2.4,cd:0.8,release:1.7,hop:5,mantleUp:8.5,mantleFwd:3.2,fallGrace:0.9};
 const PICKS=[{name:'Wooden Pick',speed:1},{name:'Stone Pick',speed:0.65},{name:'Iron Pick',speed:0.42},{name:'Diamond Pick',speed:0.25},{name:'Ember Pick',speed:0.13}];
@@ -4792,7 +4796,7 @@ const PICKS=[{name:'Wooden Pick',speed:1},{name:'Stone Pick',speed:0.65},{name:'
 const TOOL_TIERS=['Wooden','Stone','Iron','Diamond','Ember'];
 const TOOLS={
   pick: {name:'Pick', dmg:[10,14,18,24,30]},
-  spade:{name:'Spade',dmg:[8,11,14,19,24],blocks:[B.GRASS,B.DIRT,B.SAND,B.SNOW]},
+  spade:{name:'Spade',dmg:[8,11,14,19,24],blocks:[B.GRASS,B.DIRT,B.SAND,B.SNOW,B.GRAVEL]},
   axe:  {name:'Axe',  dmg:[18,26,34,44,56],blocks:[B.LOG,B.PLANKS,B.PLANK_SLAB,B.PLANK_STAIR,B.PLANK_STAIR+1,B.PLANK_STAIR+2,B.PLANK_STAIR+3,B.DOOR,B.DOOR_TOP,B.DOOR_OPEN,B.DOOR_TOP_OPEN,B.CHEST,B.SHELF]},
   matchMul:0.4, wrongMul:1.75, meleeReach:3.0, meleeCD:0.45,
 };
@@ -4827,12 +4831,12 @@ const EXPLOSIVES={
 };
 // Inventory: 9 hotbar slots + 27 backpack slots (core/inventory.js). Each slot holds one item key; counts live in inv/res,
 // so every item type is a single stack and moving a slot never changes what you own. PACK_RES = materials shown in the backpack.
-const HOTBAR_SIZE=9,BACKPACK_SIZE=36,PACK_RES=['coal','iron','gold','diamond','ember','voltite','cell'];
+const HOTBAR_SIZE=9,BACKPACK_SIZE=36,PACK_RES=['coal','iron','gold','diamond','ember','voltite','cell','flint'];
 const DEFAULT_LAYOUT=['gun','grenade',B.DIRT,B.COBBLE,B.PLANKS,B.LOG,B.GLASS,B.LANTERN,B.CHARGE,
-  B.SAND,B.BRICK,B.DOOR,B.CHEST,B.WAYSTONE,B.VOLTSTEEL,B.LURE,B.TROPHY,B.BANNER,B.VOIDGLASS,B.RUNEBRICK,B.SANDTILE,B.SHELF,B.STARROCK,B.PLANK_SLAB,B.PLANK_STAIR,B.COBBLE_SLAB,B.COBBLE_STAIR,B.RUNE_SLAB,B.RUNE_STAIR,'coal','iron','gold','diamond','ember','voltite','cell'];
+  B.SAND,B.BRICK,B.DOOR,B.CHEST,B.WAYSTONE,B.VOLTSTEEL,B.LURE,B.TROPHY,B.BANNER,B.VOIDGLASS,B.RUNEBRICK,B.SANDTILE,B.SHELF,B.STARROCK,B.PLANK_SLAB,B.PLANK_STAIR,B.COBBLE_SLAB,B.COBBLE_STAIR,B.RUNE_SLAB,B.RUNE_STAIR,B.GRAVEL,'coal','iron','gold','diamond','ember','voltite','cell','flint'];
 // pre-inventory saves stored a slot index into this fixed 14-slot bar
 const LEGACY_HOTBAR=['gun','grenade',B.DIRT,B.COBBLE,B.PLANKS,B.LOG,B.SAND,B.GLASS,B.BRICK,B.LANTERN,B.CHARGE,B.DOOR,B.CHEST,B.WAYSTONE];
-const START_INV={inv:{[B.DIRT]:0,[B.COBBLE]:0,[B.PLANKS]:0,[B.LOG]:0,[B.SAND]:0,[B.GLASS]:0,[B.BRICK]:0,[B.LANTERN]:0,[B.CHARGE]:0,[B.DOOR]:0,[B.CHEST]:0,[B.WAYSTONE]:0,[B.VOLTSTEEL]:0,[B.LURE]:0,[B.TROPHY]:0,[B.BANNER]:0,[B.VOIDGLASS]:0,[B.RUNEBRICK]:0,[B.SANDTILE]:0,[B.SHELF]:0,[B.STARROCK]:0,[B.PLANK_SLAB]:0,[B.PLANK_STAIR]:0,[B.COBBLE_SLAB]:0,[B.COBBLE_STAIR]:0,[B.RUNE_SLAB]:0,[B.RUNE_STAIR]:0},res:{coal:0,iron:0,gold:0,diamond:0,ember:0,voltite:0,ammo:60,cell:0,grenade:0}};
+const START_INV={inv:{[B.DIRT]:0,[B.COBBLE]:0,[B.PLANKS]:0,[B.LOG]:0,[B.SAND]:0,[B.GLASS]:0,[B.BRICK]:0,[B.LANTERN]:0,[B.CHARGE]:0,[B.DOOR]:0,[B.CHEST]:0,[B.WAYSTONE]:0,[B.VOLTSTEEL]:0,[B.LURE]:0,[B.TROPHY]:0,[B.BANNER]:0,[B.VOIDGLASS]:0,[B.RUNEBRICK]:0,[B.SANDTILE]:0,[B.SHELF]:0,[B.STARROCK]:0,[B.PLANK_SLAB]:0,[B.PLANK_STAIR]:0,[B.COBBLE_SLAB]:0,[B.COBBLE_STAIR]:0,[B.RUNE_SLAB]:0,[B.RUNE_STAIR]:0,[B.GRAVEL]:0},res:{coal:0,iron:0,gold:0,diamond:0,ember:0,voltite:0,ammo:60,cell:0,grenade:0,flint:0}};
 // need/give keys: numeric = block id (inventory), string = resource; special gives: pickTier (min tier) / gun (index into GUNS, unlocks it) / gunTier (reforges the equipped gun to that GUN_TIERS index).
 // cat = crafting tab id (CRAFT_TABS)
 const CRAFT_TABS=[{id:'all',name:'All'},{id:'build',name:'Building'},{id:'tools',name:'Tools'},{id:'weapons',name:'Weapons'},{id:'supplies',name:'Ammo & Explosives'}];
@@ -4857,6 +4861,7 @@ const RECIPES=[
   {name:'Trophy Shelf',cat:'build', need:{[B.PLANKS]:4,iron:1},    give:{[B.SHELF]:1}},
   {name:'Lantern',cat:'build',      need:{[B.GLASS]:1,coal:1},     give:{[B.LANTERN]:1}},
   {name:'30 Ammo',cat:'supplies',      need:{iron:1,coal:1},          give:{ammo:30}},
+  {name:'40 Ammo (flint)',cat:'supplies',need:{flint:1,iron:1},       give:{ammo:40}}, // M31: flint-struck primers
   {name:'Wooden Spade',cat:'tools', need:{[B.PLANKS]:2},             give:{spadeTier:0}},
   {name:'Stone Spade',cat:'tools',  need:{[B.COBBLE]:1,[B.PLANKS]:1},give:{spadeTier:1}},
   {name:'Iron Spade',cat:'tools',   need:{iron:1,[B.PLANKS]:1},      give:{spadeTier:2}},
@@ -5001,6 +5006,9 @@ function cinderCarve(wx,y,wz,b){const C=CINDER;const cav=NZ2.n3(wx*C.cavernNoise
   const ceil=C.magmaLevel+1+Math.min(C.top-C.magmaLevel-2,Math.floor((cav-C.cavernMin)*C.cavernScale)+1);
   if(y>C.magmaLevel&&y<=ceil)return b===B.EMBERITE&&y===ceil?b:0;
   if(y<=C.magmaLevel&&NZ.n3(wx*C.poolNoise,3.3,wz*C.poolNoise)>C.poolMin)return B.MAGMA;return b;}
+let GRAVEL_GEN=true; // M31 test switch (compare ore balance with/without gravel)
+// generate a chunk's voxels for stats without keeping it loaded
+function surveyChunk(cx,cz){const k=kOf(cx,cz),had=chunks.get(k);const c=genChunk(cx,cz);if(had)chunks.set(k,had);else chunks.delete(k);return c;}
 function genChunk(cx,cz){
   const data=new Uint8Array(CS*CS*CH); const X0=cx*CS,Z0=cz*CS; const hs=new Int16Array(CS*CS);
   for(let z=0;z<CS;z++)for(let x=0;x<CS;x++){
@@ -5016,10 +5024,15 @@ function genChunk(cx,cz){
         if(r<0.010&&y<h-4)b=B.COAL; else if(r<0.010+0.0065*om&&y<42+lift)b=B.IRON; else if(r<0.010+0.0095*om&&y<22+lift)b=B.GOLD; else if(r<0.010+0.0112*om&&y<14+lift)b=B.DIAMOND;
         else if(r<0.010+0.0130*om&&y<19+lift&&y>CINDER.top)b=B.VOLTITE;
       }
+      // M31 gravel (after ores, so ore counts are untouched): patches on river/lake beds and beaches, a layer just under beach sand,
+      // and loose patches on cave floors (see the cave carve below)
+      if(!GRAVEL_GEN){}else if(beach&&y>=h-5&&y<=h&&(b===B.SAND||b===B.STONE)){const gn=NZ2.n3(wx*0.09+13,y*0.15,wz*0.09-41);
+        if(y===h?(gn>(h<SEA?0.12:0.32)):y>=h-3?gn>0.4:(b===B.STONE&&gn>0.05))b=B.GRAVEL;}
       if(b===B.STONE&&y<=CINDER.top){b=B.CINDER;if(y<=CINDER.emberMaxY&&hash3(wx,y+97,wz)<CINDER.emberChance*om)b=B.EMBERITE;}
       if(y>1&&y<h-1&&b!==0&&b!==B.WATER&&y<=h-(h<=SEA+2?6:1)){ // caves
         const a=NZ.n3(wx*0.045,y*0.07,wz*0.045),c2=NZ2.n3(wx*0.045,y*0.07,wz*0.045);
-        if(Math.abs(a)<0.075&&Math.abs(c2)<0.075)b=y<=CINDER.magmaLevel?B.MAGMA:0;
+        if(Math.abs(a)<0.075&&Math.abs(c2)<0.075){b=y<=CINDER.magmaLevel?B.MAGMA:0;
+          const fi=((y-1)*CS+z)*CS+x;if(GRAVEL_GEN&&!b&&y-1>CINDER.top+2&&data[fi]===B.STONE&&NZ2.n3(wx*0.08-77,y*0.1,wz*0.08+29)>0.1)data[fi]=B.GRAVEL;}
       }
       if(y>=1&&y<=CINDER.top&&b!==0&&b!==B.WATER&&b!==B.MAGMA&&h>CINDER.top+6)b=cinderCarve(wx,y,wz,b);
       if(voidG){if(b===B.GRASS)b=B.VOIDTURF;else if(b===B.STONE)b=B.VOIDSHALE;}
@@ -5117,6 +5130,7 @@ function itemCount(k){return isNaN(+k)?res[k]:inv[+k];}
 function addItem(k,n){if(isNaN(+k))res[k]=(res[k]||0)+n;else inv[+k]=(inv[+k]||0)+n;}
 function harvest(blockId){ // returns {key,n} of what the player receives
   if(gameMode.infinite)return null;
+  if(blockId===B.GRAVEL&&Math.random()<GRAVEL_FLINT){res.flint=(res.flint||0)+1;return {key:'flint',n:1};}
   const d=BLOCKS[blockId].drop;let out=null;if(typeof d==='string'){res[d]++;out={key:d,n:1};}else if(d&&inv[d]!==undefined){inv[d]++;out={key:d,n:1};}
   if(blockId===B.LEAVES&&Math.random()<0.1)inv[B.PLANKS]++;return out;}
 function canBreak(blockId){return gameMode.instantBreak?isFinite(BLOCKS[blockId].hard):BLOCKS[blockId].tier<=pickTier;}
@@ -5811,7 +5825,7 @@ function setA11y(k,v){if(!(k in A11Y))return;A11Y[k]=!!v;saveGfx();}
 // ================= CLIENT (Three.js presentation layer) =================
 const T = THREE;
 // atlas cell index for each tile name used in BLOCKS[].tiles (render-side mapping)
-const TL={grassTop:0,grassSide:1,dirt:2,stone:3,cobble:4,logSide:5,logTop:6,leaves:7,sand:8,coal:9,iron:10,gold:11,diamond:12,planks:13,glass:14,brick:15,lantern:16,bedrock:17,water:18,snowTop:19,snowSide:20,chargeTop:21,chargeSide:22,cinder:23,magma:24,emberite:25,doorLo:26,doorHi:27,chestTop:28,chestFront:29,wayTop:30,waySide:31,voltite:32,voltsteel:33,voidTop:34,voidSide:35,voidShale:36,lureTop:37,lureSide:38,trophy:39,banner:40,bannerTop:41,voidglass:42,runebrick:43,sandtile:44,shelfSide:45,shelfTop:46,starrock:47,stargoo:48};
+const TL={grassTop:0,grassSide:1,dirt:2,stone:3,cobble:4,logSide:5,logTop:6,leaves:7,sand:8,coal:9,iron:10,gold:11,diamond:12,planks:13,glass:14,brick:15,lantern:16,bedrock:17,water:18,snowTop:19,snowSide:20,chargeTop:21,chargeSide:22,cinder:23,magma:24,emberite:25,doorLo:26,doorHi:27,chestTop:28,chestFront:29,wayTop:30,waySide:31,voltite:32,voltsteel:33,voidTop:34,voidSide:35,voidShale:36,lureTop:37,lureSide:38,trophy:39,banner:40,bannerTop:41,voidglass:42,runebrick:43,sandtile:44,shelfSide:45,shelfTop:46,starrock:47,stargoo:48,gravel:49};
 // render view of the block table: same data + resolved atlas tile indices
 const BD=BLOCKS.map(d=>Object.assign({},d,{tex:d.tiles.map(n=>TL[n])}));
 // ---------------- Procedural HD textures (resolution independent) ----------------
@@ -6028,6 +6042,11 @@ function starRockP(u,v,g){const n=fbm(u,v,5,4,4101);vor(u,v,6,4102,V);const pit=
   setC([46,52,66],0.5+n*0.4+pit*0.25+(g-0.5)*0.1,0.25+pit*0.6+n*0.2,0.5,0.25);
   const w=Math.abs(fbm(u+fbm(u,v,3,2,4103)*0.5,v,3,3,4104)-0.5);if(w<0.022){const k=1-w/0.022;O.r=O.r*(1-k)+120*k;O.g=O.g*(1-k)+255*k;O.b=O.b*(1-k)+230*k;O.h=0.1;O.er=0.15*k;O.eg=0.8*k;O.eb=0.7*k;}}
 PAINT[TL.starrock]=starRockP;
+// M31 gravel: densely packed rounded pebbles in mixed grey/brown/ochre tones with dark gaps between them
+PAINT[TL.gravel]=(u,v,g)=>{vor(u,v,7,4901,V);const e=V.d2-V.d1,n=fbm(u,v,12,2,4902);
+  if(e<0.06){setC([58,54,50],0.7+n*0.4,0.02,0.97);return;}
+  const k=h2(V.id,0,4903),col=k<0.45?[128,124,118]:k<0.75?[112,100,88]:k<0.9?[150,138,112]:[92,92,98];
+  const dome=Math.sqrt(clamp01((e-0.06)/0.22));setC(col,(0.72+h2(V.id,1,4904)*0.38)*(0.7+dome*0.35)*(0.9+n*0.2)*(0.92+(g-0.5)*0.12),0.15+dome*0.75,0.8);};
 // Star Goo ore: Starfall Rock with bulging pockets of luminous green-cyan goo, bright cores and dark rinds
 PAINT[TL.stargoo]=(u,v,g)=>{starRockP(u,v,g);vor(u,v,3,4201,V);const R=0.27+(fbm(u,v,8,2,4202)-0.5)*0.16;
   if(V.d1<R&&h2(V.id,0,4203)<0.9){const k=1-V.d1/R;if(k<0.12){setC([20,40,34],0.8,0.2,0.4);return;}const b=fbm(u,v,14,2,4204);
@@ -7149,7 +7168,7 @@ function syncGrappleView(dt){const g=player.grapple;if(!g){tether.visible=false;
 // ---------------- HUD ----------------
 const hotbarEl=document.getElementById('hotbar');
 const hotbarIconCache={};const SLOT_KEYS=['1','2','3','4','5','6','7','8','9'];
-const RES_ICON={coal:['#2a2a2e','#5a5a62'],iron:['#b88a6a','#f0d0b4'],gold:['#d9a520','#fff09a'],diamond:['#2fc4cc','#c8ffff'],ember:['#e0461a','#ffd080'],voltite:['#7040d0','#e0c8ff']};
+const RES_ICON={coal:['#2a2a2e','#5a5a62'],iron:['#b88a6a','#f0d0b4'],gold:['#d9a520','#fff09a'],diamond:['#2fc4cc','#c8ffff'],ember:['#e0461a','#ffd080'],voltite:['#7040d0','#e0c8ff'],flint:['#2e3036','#9aa2ae']};
 function iconFor(item){const c=document.createElement('canvas');c.width=c.height=48;const x=c.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
   if(item==null)return c;
   if(item==='cell'){x.shadowColor='#b080ff';x.shadowBlur=8;x.fillStyle='#2a2c34';x.fillRect(15,10,18,32);x.fillStyle='#8a8e96';x.fillRect(19,6,10,5);x.shadowBlur=0;x.fillStyle='#b48cff';x.fillRect(18,15,12,24);x.fillStyle='#f0e4ff';x.beginPath();x.moveTo(26,17);x.lineTo(20,28);x.lineTo(24,28);x.lineTo(22,37);x.lineTo(28,25);x.lineTo(24,25);x.closePath();x.fill();return c;}
@@ -7687,7 +7706,7 @@ renderModeCards();document.getElementById('play').onclick=startGame;
 document.getElementById('loading').textContent=`World seed ${SEED} · textures ${TS}px generated in ${Math.round(texGenMs)} ms`;document.getElementById('play').disabled=false;
 requestAnimationFrame(frame);
 // debug/test hooks
-window.GAME={TOUCH,TOOLS,breakTime,meleeDamage,meleeTarget,toolName,get spadeTier(){return spadeTier;},set spadeTier(v){spadeTier=v;},get axeTier(){return axeTier;},set axeTier(v){axeTier=v;},get meleeCD(){return meleeCD;},shelves,shelfPut,shelfTake,shelfViews,announceRestoredStructures,rayShape,raycast,STEP_GLIDE,SHAPES,STAIR_OF,stairFacing,placedId,collideBox,touch:()=>GAME_TOUCH,fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
+window.GAME={TOUCH,surveyChunk,GRAVEL_FLINT,get gravelGen(){return GRAVEL_GEN;},set gravelGen(v){GRAVEL_GEN=v;},TOOLS,breakTime,meleeDamage,meleeTarget,toolName,get spadeTier(){return spadeTier;},set spadeTier(v){spadeTier=v;},get axeTier(){return axeTier;},set axeTier(v){axeTier=v;},get meleeCD(){return meleeCD;},shelves,shelfPut,shelfTake,shelfViews,announceRestoredStructures,rayShape,raycast,STEP_GLIDE,SHAPES,STAIR_OF,stairFacing,placedId,collideBox,touch:()=>GAME_TOUCH,fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
   look:(yaw,pitch)=>{player.yaw=yaw;player.pitch=pitch;},setTimeScale:s=>timeScale=s,setMouse:(l,r)=>{mouseL=l;mouseR=r;},craft:toggleCraft,get pickTier(){return pickTier;},set pickTier(v){pickTier=v;},hurt:hurtPlayer,
   setPreset:n=>applyPreset(n,true),nearestLandmark,nearestStarfall,starfallInCell,removeZombie,STARFALL,updateStarfall,landmarkSealed,foundLandmarks,VOID_LOOK,get voidF(){return voidF;},toggleMap,MAPMEM,mapMemColumn,get bigMapR(){return MM.bigR;},set bigMapR(v){MM.bigR=v;},voidFx:()=>VFX,ambience:()=>({zone:AMB.zone,wind:AMB.w,rumble:AMB.r,bed:!!AMB.bed}),get volume(){return sfxVolume;},setVolume,setFxVolume,setAmbVolume,master:()=>MASTER&&MASTER.gain.value,showPause:on=>{paused=!!on;document.getElementById('pause').style.display=on?'flex':'none';if(on)renderSettings();},options:()=>({vol:sfxVolume,fx:fxVolume,amb:ambVolume,sens:mouseSens,fov:baseFov,camFov:camera.fov,busFx:BUS_FX&&BUS_FX.gain.value,busAmb:BUS_AMB&&BUS_AMB.gain.value,mus:musVolume,busMus:BUS_MUS&&BUS_MUS.gain.value}),spawnWisp:(x,y,z)=>spawnZombie(x,y,z,'shardwisp'),trySpawnZombie,ambienceZone,get mapOpen(){return mapOpen;},landmarkState,closeChest,LANDMARK,updateLandmarks,serializeGame,get preset(){return gfx.preset;},get texGenMs(){return texGenMs;},setRD,get gun(){return gun;},get gunTiers(){return gunTiers;},setGunTier:(i,t)=>{gunTiers[i]=t;fire('gunChanged');},gunStat,gunName,gunAmmo,ammoKey,canCraft,recipeLocked,GUN_TIERS,BLASTPROOF_HARD,damageZombie,STORMHULK_CHANCE,get guns(){return guns;},unlockGun,cycleGun,GUNS,throwGrenade:()=>{const r=throwGrenade(eye(),lookDir());updateHotbar();return r;},explode,projectiles,fuses,igniteCharge,lookDir:()=>lookDir().clone(),eye:()=>eye().clone(),get aim(){return aimAmt;},
   pendingChunks:()=>{let n=0;for(const c of chunks.values()){const dx=c.cx-Math.floor(player.pos.x/CS),dz=c.cz-Math.floor(player.pos.z/CS);if(c.dirty&&dx*dx+dz*dz<=(RD+0.5)*(RD+0.5))n++;}return n;}};
