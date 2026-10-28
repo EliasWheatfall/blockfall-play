@@ -4786,6 +4786,16 @@ const RESOURCES=['coal','iron','gold','diamond','ember','voltite','ammo','cell',
 // Charged Grapple tuning (see core/grapple.js)
 const GRAPPLE={range:26,voidRange:40,cellCost:2,voidCost:0,pull:22,accel:9,maxT:2.4,cd:0.8,release:1.7,hop:5,mantleUp:8.5,mantleFwd:3.2,fallGrace:0.9};
 const PICKS=[{name:'Wooden Pick',speed:1},{name:'Stone Pick',speed:0.65},{name:'Iron Pick',speed:0.42},{name:'Diamond Pick',speed:0.25},{name:'Ember Pick',speed:0.13}];
+// M30 tools: spades & axes share the pick tiers (TOOL_TIERS[i] ~ PICKS[i]). Holding the right tool for a block's group digs it at
+// matchMul x that tier's pick time (never slower than your pick); holding a spade/axe on anything else is wrongMul x slower.
+// Melee: mining/attack with any non-gun item swings at a zombie in reach; dmg per tier, axes hardest; cooldown between swings.
+const TOOL_TIERS=['Wooden','Stone','Iron','Diamond','Ember'];
+const TOOLS={
+  pick: {name:'Pick', dmg:[10,14,18,24,30]},
+  spade:{name:'Spade',dmg:[8,11,14,19,24],blocks:[B.GRASS,B.DIRT,B.SAND,B.SNOW]},
+  axe:  {name:'Axe',  dmg:[18,26,34,44,56],blocks:[B.LOG,B.PLANKS,B.PLANK_SLAB,B.PLANK_STAIR,B.PLANK_STAIR+1,B.PLANK_STAIR+2,B.PLANK_STAIR+3,B.DOOR,B.DOOR_TOP,B.DOOR_OPEN,B.DOOR_TOP_OPEN,B.CHEST,B.SHELF]},
+  matchMul:0.4, wrongMul:1.75, meleeReach:3.0, meleeCD:0.45,
+};
 // Weapons table. model = viewmodel builder key (client). pellets = rays per shot; range in metres;
 // zoom = FOV divisor while aiming (right mouse); breaks = shots destroy soft non-ore blocks (hard <= EXPLOSIVES.blasterBreakHard).
 const GUNS=[
@@ -4847,6 +4857,16 @@ const RECIPES=[
   {name:'Trophy Shelf',cat:'build', need:{[B.PLANKS]:4,iron:1},    give:{[B.SHELF]:1}},
   {name:'Lantern',cat:'build',      need:{[B.GLASS]:1,coal:1},     give:{[B.LANTERN]:1}},
   {name:'30 Ammo',cat:'supplies',      need:{iron:1,coal:1},          give:{ammo:30}},
+  {name:'Wooden Spade',cat:'tools', need:{[B.PLANKS]:2},             give:{spadeTier:0}},
+  {name:'Stone Spade',cat:'tools',  need:{[B.COBBLE]:1,[B.PLANKS]:1},give:{spadeTier:1}},
+  {name:'Iron Spade',cat:'tools',   need:{iron:1,[B.PLANKS]:1},      give:{spadeTier:2}},
+  {name:'Diamond Spade',cat:'tools',need:{diamond:1,[B.PLANKS]:1},   give:{spadeTier:3}},
+  {name:'Ember Spade',cat:'tools',  need:{ember:1,diamond:1,[B.PLANKS]:1},give:{spadeTier:4}},
+  {name:'Wooden Axe',cat:'tools',   need:{[B.PLANKS]:3},             give:{axeTier:0}},
+  {name:'Stone Axe',cat:'tools',    need:{[B.COBBLE]:2,[B.PLANKS]:1},give:{axeTier:1}},
+  {name:'Iron Axe',cat:'tools',     need:{iron:2,[B.PLANKS]:1},      give:{axeTier:2}},
+  {name:'Diamond Axe',cat:'tools',  need:{diamond:2,[B.PLANKS]:1},   give:{axeTier:3}},
+  {name:'Ember Axe',cat:'tools',    need:{ember:2,diamond:1,[B.PLANKS]:1},give:{axeTier:4}},
   {name:'Stone Pick',cat:'tools',   need:{[B.COBBLE]:3,[B.PLANKS]:2},give:{pickTier:1}},
   {name:'Iron Pick',cat:'tools',    need:{iron:3,[B.PLANKS]:2},    give:{pickTier:2}},
   {name:'Diamond Pick',cat:'tools', need:{diamond:3,[B.PLANKS]:2}, give:{pickTier:3}},
@@ -5081,6 +5101,7 @@ const EYE=PS.eye;
 const inv=Object.assign({},START_INV.inv);
 const res=Object.assign({},START_INV.res);
 let gunTiers=new Array(GUNS.length).fill(0); // GUN_TIERS index per gun
+let spadeTier=-1,axeTier=-1; // M30: -1 = not crafted yet
 let pickTier=0,guns=[0],gun=0,slot=0,kills=0,day=1,worldTime=0.08,timeScale=1,clock=0;
 let spawnPoint=new V3();
 let burnAcc=0; // magma damage accumulator
@@ -5099,7 +5120,14 @@ function harvest(blockId){ // returns {key,n} of what the player receives
   const d=BLOCKS[blockId].drop;let out=null;if(typeof d==='string'){res[d]++;out={key:d,n:1};}else if(d&&inv[d]!==undefined){inv[d]++;out={key:d,n:1};}
   if(blockId===B.LEAVES&&Math.random()<0.1)inv[B.PLANKS]++;return out;}
 function canBreak(blockId){return gameMode.instantBreak?isFinite(BLOCKS[blockId].hard):BLOCKS[blockId].tier<=pickTier;}
-function breakTime(blockId){if(gameMode.instantBreak)return 0.06;return BLOCKS[blockId].hard*PICKS[pickTier].speed;}
+const TOOL_SET={spade:new Set(TOOLS.spade.blocks),axe:new Set(TOOLS.axe.blocks)};
+function toolTier(k){return k==='spade'?spadeTier:k==='axe'?axeTier:k==='pick'?pickTier:-1;}
+// item = what is held: 'spade'/'axe' use their tier on their block group (and are slower on anything else); anything else digs with the pick
+function breakTime(blockId,item){if(gameMode.instantBreak)return 0.06;const base=BLOCKS[blockId].hard*PICKS[pickTier].speed;
+  if((item==='spade'||item==='axe')&&toolTier(item)>=0)return TOOL_SET[item].has(blockId)?Math.min(base,BLOCKS[blockId].hard*PICKS[toolTier(item)].speed*TOOLS.matchMul):base*TOOLS.wrongMul;
+  return base;}
+function meleeDamage(item){const k=(item==='spade'||item==='axe')&&toolTier(item)>=0?item:'pick';return TOOLS[k].dmg[Math.max(0,toolTier(k))];}
+function toolName(k){return TOOL_TIERS[Math.max(0,toolTier(k))]+' '+TOOLS[k].name;}
 function hurtPlayer(d,from,enemy){if(!player.alive||gameMode.invulnerable)return;if(enemy)d=enemyDmg(d);player.hp-=d;player.lastHurt=clock;
   if(from){const dx=player.pos.x-from.x,dz=player.pos.z-from.z,l=Math.hypot(dx,dz)||1;player.vel.x+=dx/l*6;player.vel.z+=dz/l*6;player.vel.y=Math.max(player.vel.y,4);}
   fire('playerHurt',d);if(player.hp<=0){player.hp=0;player.alive=false;fire('playerDied');}}
@@ -5151,6 +5179,13 @@ function trySpawnZombie(){const ang=Math.random()*Math.PI*2,dist=ZS.spawnDistMin
   spawnZombie(x+0.5,y+1,z+0.5,r<STORMHULK_CHANCE[ri]?'stormhulk':r<STORMHULK_CHANCE[ri]+BONEWALKER_CHANCE[ri]?'bonewalker':'walker');}
 function chunkLoadedAt(x,z){return chunks.has(kOf(Math.floor(x/CS),Math.floor(z/CS)));}
 // src: 'energy' | 'blast' | undefined (kinetic). Armored kinds (K.armor) take reduced kinetic damage.
+// M30 melee: nearest live enemy whose box the ray enters within reach (and before maxT, e.g. the aimed block)
+function meleeTarget(o,d,reach,maxT){let best=null,bt=Math.min(reach,maxT==null?Infinity:maxT);
+  for(const z of zombies){if(z.dead)continue;const lo=[z.pos.x-z.hw,z.pos.y,z.pos.z-z.hw],hi=[z.pos.x+z.hw,z.pos.y+z.h,z.pos.z+z.hw],O=[o.x,o.y,o.z],D=[d.x,d.y,d.z];let t0=0,t1=bt;
+    for(let a=0;a<3&&t0<=t1;a++){if(Math.abs(D[a])<1e-9){if(O[a]<lo[a]||O[a]>hi[a])t0=Infinity;continue;}let ta=(lo[a]-O[a])/D[a],tb=(hi[a]-O[a])/D[a];if(ta>tb)[ta,tb]=[tb,ta];t0=Math.max(t0,ta);t1=Math.min(t1,tb);}
+    if(t0<=t1&&t0<bt){bt=t0;best=z;}}
+  return best;}
+function meleeAttack(o,d,item,maxT){const z=meleeTarget(o,d,TOOLS.meleeReach,maxT);if(!z)return null;const dmg=meleeDamage(item);damageZombie(z,dmg,{x:d.x,y:0,z:d.z},false,'melee');fire('meleeHit',z,dmg,item);return {z,dmg};}
 function damageZombie(z,dmg,dir,head,src){const K=ENEMY_KINDS[z.kind];const arm=K&&K.armor&&src!=='energy'&&src!=='blast'?K.armor:1;if(arm<1)fire('armorHit',z);
   z.hp-=dmg*arm*(head?ZS.headshotMul:1);z.hurt=0.15;if(dir&&!z.flying){const kb=z.kind==='stormhulk'?0.8:4;z.vel.x+=dir.x*kb;z.vel.z+=dir.z*kb;}
   if(z.hp<=0&&!z.dead){z.dead=0.001;kills++;let ammo=0;if(Math.random()<ZS.ammoDropChance){ammo=Math.round((ZS.ammoDropMin+Math.floor(Math.random()*ZS.ammoDropVar))*(1+z.ring*0.5));}if(z.boss){const W=ENEMY_KINDS.ashwing.reward;res.ammo+=W.ammo;ammo+=W.ammo;res.grenade=(res.grenade||0)+W.grenade;for(const k in W.res)addItem(k,W.res[k]);}
@@ -5466,14 +5501,15 @@ function setTimeOfDay(t){worldTime=((t%1)+1)%1;}
 // ('gun', 'grenade', a block id, or a PACK_RES material) or null. Event: 'layoutChanged'.
 const PACK_SIZE=HOTBAR_SIZE+BACKPACK_SIZE;
 const HOTBAR=new Array(PACK_SIZE).fill(null);
-function isItemKey(k){return k==='gun'||k==='grenade'||(k==='grapple'&&hasGrapple())||PACK_RES.includes(k)||(typeof k==='number'&&!!BLOCKS[k]&&inv[k]!==undefined);}
-function slotCount(k){if(k==null)return 0;if(k==='gun')return gunAmmo();return itemCount(k)||0;}
+function isItemKey(k){return k==='gun'||k==='grenade'||(k==='grapple'&&hasGrapple())||(k==='spade'&&spadeTier>=0)||(k==='axe'&&axeTier>=0)||PACK_RES.includes(k)||(typeof k==='number'&&!!BLOCKS[k]&&inv[k]!==undefined);}
+function slotCount(k){if(k==null)return 0;if(k==='gun')return gunAmmo();if(k==='spade'||k==='axe')return toolTier(k)+1;return itemCount(k)||0;}
 // drop invalid/duplicate keys, then give every owned item type a slot (backpack first)
 function ensureLayout(){const seen=new Set();
   for(let i=0;i<PACK_SIZE;i++){const k=HOTBAR[i];if(k==null)continue;if(!isItemKey(k)||seen.has(k))HOTBAR[i]=null;else seen.add(k);}
-  for(const k of ['gun','grenade',...(hasGrapple()?['grapple']:[]),...Object.keys(inv).map(Number),...PACK_RES]){if(seen.has(k))continue;
+  for(const k of ['gun','grenade',...(hasGrapple()?['grapple']:[]),...(spadeTier>=0?['spade']:[]),...(axeTier>=0?['axe']:[]),...Object.keys(inv).map(Number),...PACK_RES]){if(seen.has(k))continue;
     let j=HOTBAR.indexOf(null,HOTBAR_SIZE);if(j<0)j=HOTBAR.indexOf(null);if(j<0)break;HOTBAR[j]=k;seen.add(k);}
   fire('layoutChanged');}
+on('toolGained',k=>{ensureLayout();const j=HOTBAR.indexOf(k),e=HOTBAR.indexOf(null);if(j>=HOTBAR_SIZE&&e>=0&&e<HOTBAR_SIZE)moveSlot(j,e);});
 function resetLayout(){HOTBAR.fill(null);DEFAULT_LAYOUT.forEach((k,i)=>HOTBAR[i]=k);ensureLayout();}
 function moveSlot(a,b){if(a===b||!(a>=0&&a<PACK_SIZE&&b>=0&&b<PACK_SIZE))return false;const t=HOTBAR[a];HOTBAR[a]=HOTBAR[b];HOTBAR[b]=t;fire('layoutChanged',a,b);return true;}
 // shift-click: send a stack between hotbar and backpack (first free slot); returns the new index or -1
@@ -5665,11 +5701,11 @@ function updateStarfall(dt){const P=player.pos;if(Math.hypot(P.x,P.z)<STARFALL.m
 // ===== core/crafting.js =====
 // ================= Crafting rules (engine-agnostic) =================
 // reforge recipes target the equipped gun: owned once it is at that tier, craftable only from the tier just below
-function recipeOwned(r){return (r.give.grapple!==undefined&&hasGrapple())||(r.give.pickTier!==undefined&&pickTier>=r.give.pickTier)||(r.give.gun!==undefined&&guns.includes(r.give.gun))||(r.give.gunTier!==undefined&&gunTiers[gun]>=r.give.gunTier);}
+function recipeOwned(r){return (r.give.grapple!==undefined&&hasGrapple())||(r.give.pickTier!==undefined&&pickTier>=r.give.pickTier)||(r.give.spadeTier!==undefined&&spadeTier>=r.give.spadeTier)||(r.give.axeTier!==undefined&&axeTier>=r.give.axeTier)||(r.give.gun!==undefined&&guns.includes(r.give.gun))||(r.give.gunTier!==undefined&&gunTiers[gun]>=r.give.gunTier);}
 function recipeLocked(r){return r.give.gunTier!==undefined&&gunTiers[gun]<r.give.gunTier-1;}
 function canCraft(r){return !recipeOwned(r)&&!recipeLocked(r)&&Object.entries(r.need).every(([k,n])=>itemCount(k)>=n);}
 function craft(r){if(!canCraft(r))return false;for(const [k,n] of Object.entries(r.need))addItem(k,-n);
-  for(const [k,n] of Object.entries(r.give)){if(k==='pickTier')pickTier=Math.max(pickTier,n);else if(k==='gun'){unlockGun(n);}else if(k==='gunTier'){gunTiers[gun]=n;fire('gunChanged');}else addItem(k,n);}
+  for(const [k,n] of Object.entries(r.give)){if(k==='pickTier')pickTier=Math.max(pickTier,n);else if(k==='spadeTier'||k==='axeTier'){const had=toolTier(k==='spadeTier'?'spade':'axe')>=0;if(k==='spadeTier')spadeTier=Math.max(spadeTier,n);else axeTier=Math.max(axeTier,n);if(!had)fire('toolGained',k==='spadeTier'?'spade':'axe');}else if(k==='gun'){unlockGun(n);}else if(k==='gunTier'){gunTiers[gun]=n;fire('gunChanged');}else addItem(k,n);}
   fire('crafted',r);return true;}
 
 // ===== core/save.js =====
@@ -5686,7 +5722,7 @@ const v3a=v=>[+v.x.toFixed(3),+v.y.toFixed(3),+v.z.toFixed(3)];
 function serializeGame(){const edits={};for(const [k,m] of editLog){const a=[];for(const [i,b] of m)a.push(i,b);edits[k]=a;}
   return {v:SAVE_VERSION,seed:SEED,savedAt:Date.now(),mode:gameModeId,goalIdx,runBest,bestDist,
     player:{pos:v3a(player.pos),yaw:player.yaw,pitch:player.pitch,hp:player.hp,flying:!!player.flying},spawn:v3a(spawnPoint),
-    inv:Object.assign({},inv),res:Object.assign({},res),pickTier,guns:guns.slice(),gunTiers:gunTiers.slice(),gun,slot,kills,day,worldTime,clock,
+    inv:Object.assign({},inv),res:Object.assign({},res),pickTier,spadeTier,axeTier,guns:guns.slice(),gunTiers:gunTiers.slice(),gun,slot,kills,day,worldTime,clock,
     doors:[...doors.values()].map(d=>({x:d.x,y:d.y,z:d.z,axis:d.axis,open:d.open,hp:d.hp})),
     chests:[...chests.entries()].map(([k,c])=>({k,slots:c.slots,face:c.face,grave:c.grave||undefined})),shelves:[...shelves.entries()],edits,
     difficulty:difficultyId,camp,recallCd:recall.cd,landmarks:serializeLandmarks(),layout:HOTBAR.slice()};}
@@ -5701,7 +5737,8 @@ function deserializeGame(s){if(!s||s.v!==SAVE_VERSION||s.seed!==SEED)return null
   for(const k in inv)delete inv[k];Object.assign(inv,s.inv);for(const k in res)delete res[k];Object.assign(res,s.res);
   for(const k in START_INV.inv)if(inv[k]===undefined)inv[k]=0;for(const k in START_INV.res)if(res[k]===undefined)res[k]=0; // saves from before new items
   gunTiers=GUNS.map((_,i)=>(s.gunTiers&&s.gunTiers[i])|0);
-  pickTier=s.pickTier;guns=s.guns.slice();gun=s.gun;slot=s.slot;kills=s.kills;day=s.day;worldTime=s.worldTime;clock=s.clock||0;bestDist=s.bestDist||0;
+  pickTier=s.pickTier;spadeTier=s.spadeTier??-1;axeTier=s.axeTier??-1; // pre-M30 saves own no spade/axe
+guns=s.guns.slice();gun=s.gun;slot=s.slot;kills=s.kills;day=s.day;worldTime=s.worldTime;clock=s.clock||0;bestDist=s.bestDist||0;
   gameModeId=MODES[s.mode]?s.mode:'survival';gameMode=MODES[gameModeId];goalIdx=s.goalIdx||0;runBest=s.runBest||0;
   const P=s.player;player.pos.set(P.pos[0],P.pos[1],P.pos[2]);player.vel.set(0,0,0);player.yaw=P.yaw;player.pitch=P.pitch;player.hp=P.hp;player.alive=true;player.flying=!!P.flying&&!!gameMode.fly;
   spawnPoint.set(s.spawn[0],s.spawn[1],s.spawn[2]);
@@ -6463,6 +6500,17 @@ function grenadeModel(scale){const G=new T.Group();const body=new T.Mesh(new T.S
   G.add(part(new T.CylinderGeometry(0.022,0.026,0.04,14),GM.steel,0,0.085,0));G.add(part(bx(0.012,0.09,0.018),GM.steel,0.03,0.05,0,0,0,-0.25));
   const ring=new T.Mesh(new T.TorusGeometry(0.018,0.003,6,16),GM.steel);ring.position.set(-0.03,0.1,0);ring.rotation.y=Math.PI/2;G.add(ring);
   if(scale)G.scale.setScalar(scale);return G;}
+// M30 held spade / axe: simple handle + tier-coloured head; swings on a melee hit or while digging
+const TOOL_COL=['#a0784a','#8c8c8c','#d8d0c8','#46dee2','#ff6a28'];
+let heldTool=null,heldToolKey=null,toolSwing=0;
+function showHeldTool(k){if(heldTool&&(heldToolKey!==k||!k)){viewModel.remove(heldTool);heldTool=null;heldToolKey=null;}if(!(k==='spade'||k==='axe')||heldTool)return;
+  const g=new T.Group(),wood=new T.MeshStandardMaterial({color:0x6a4a2a,roughness:0.9}),t=Math.max(0,toolTier(k)),head=new T.MeshStandardMaterial({color:TOOL_COL[t],roughness:0.45,metalness:t>=2?0.7:0.1,emissive:t===4?0x601800:0});
+  const h=new T.Mesh(new T.CylinderGeometry(0.012,0.014,0.34,6),wood);h.position.y=0.1;g.add(h);
+  if(k==='spade'){const b=new T.Mesh(new T.BoxGeometry(0.09,0.11,0.012),head);b.position.y=0.31;g.add(b);const tip=new T.Mesh(new T.ConeGeometry(0.064,0.05,4),head);tip.rotation.y=Math.PI/4;tip.scale.z=0.15;tip.position.y=0.385;g.add(tip);}
+  else{const b=new T.Mesh(new T.BoxGeometry(0.11,0.07,0.016),head);b.position.set(0.05,0.24,0);g.add(b);const e=new T.Mesh(new T.BoxGeometry(0.02,0.1,0.018),head);e.position.set(0.105,0.24,0);g.add(e);}
+  g.position.set(0.04,-0.12,-0.1);g.rotation.set(-0.5,0.3,-0.25);viewModel.add(g);heldTool=g;heldToolKey=k;}
+function animHeldTool(dt,digging){if(!heldTool)return;if(digging&&toolSwing<=0)toolSwing=0.25;toolSwing=Math.max(0,toolSwing-dt);heldTool.rotation.x=-0.5-Math.sin(toolSwing/0.25*Math.PI)*0.9;}
+on('meleeHit',()=>{toolSwing=0.25;});
 let heldGrenade=null;
 function showHeldGrenade(on){if(on&&!heldGrenade){heldGrenade=grenadeModel(1.2);heldGrenade.position.set(0.02,-0.05,-0.12);heldGrenade.rotation.set(0.2,0.5,0.1);viewModel.add(heldGrenade);}if(heldGrenade)heldGrenade.visible=!!on&&res.grenade>0;}
 const heldMat=new T.MeshStandardMaterial({map:atlasTex,normalMap:normalTex,roughnessMap:rmTex,metalnessMap:rmTex,emissiveMap:emTex,emissive:0xffffff,emissiveIntensity:2.2,roughness:1,metalness:1,alphaTest:0.5});
@@ -6470,6 +6518,7 @@ function buildHeld(b){if(heldBlock){viewModel.remove(heldBlock);heldBlock.geomet
   const g=new T.BoxGeometry(0.2,0.2,0.2);const uv=g.attributes.uv;const bd=BD[b];const fm=[1,1,0,2,1,1];
   for(let f=0;f<6;f++){const t=tileUV(bd.tex[fm[f]]);for(let k=0;k<4;k++){const i=f*4+k;uv.setXY(i,t[0]+(t[2]-t[0])*uv.getX(i),t[1]+(t[3]-t[1])*uv.getY(i));}}
   heldBlock=new T.Mesh(g,heldMat);heldBlock.position.set(0.02,-0.04,-0.1);heldBlock.rotation.set(0.3,0.6,0);viewModel.add(heldBlock);}
+on('crafted',r=>{if(heldToolKey&&(r.give.spadeTier!==undefined||r.give.axeTier!==undefined)){const k=heldToolKey;showHeldTool(null);showHeldTool(k);}});
 
 // ===== client/fx.js =====
 const flashTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,220,1)');g.addColorStop(0.25,'rgba(255,200,80,0.9)');g.addColorStop(1,'rgba(255,120,0,0)');x.fillStyle=g;x.beginPath();for(let i=0;i<10;i++){const a=i/10*Math.PI*2,r=i%2?12:32;x.lineTo(32+Math.cos(a)*r,32+Math.sin(a)*r);}x.fill();const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;return t;})();
@@ -6880,7 +6929,7 @@ on('chestSpilled',(k,items)=>{if(chestOpen&&chestOpen.x+','+chestOpen.y+','+ches
 
 // ===== client/interaction.js =====
 // ---------------- Combat / interaction ----------------
-let fireCD=0,breakTarget=null,breakProg=0,placeCD=0;
+let fireCD=0,breakTarget=null,breakProg=0,placeCD=0,meleeCD=0;
 const _o=new T.Vector3(),_d=new T.Vector3();
 function eye(){return _o.set(player.pos.x,player.pos.y+EYE,player.pos.z);}
 function lookDir(){const cp=Math.cos(player.pitch);return _d.set(-Math.sin(player.yaw)*cp,Math.sin(player.pitch),-Math.cos(player.yaw)*cp);} // from player angles (camera may lag a frame)
@@ -6922,7 +6971,7 @@ function tryThrowGrenade(){if(grenadeCD>0||!player.alive)return;if(!res.grenade)
   throwGrenade(eye(),lookDir());grenadeCD=0.7;noiseBurst(0.08,500,0.2);tone(700,1400,0.06,0.04,'square');updateHotbar();showHeldGrenade(HOTBAR[slot]==='grenade');}
 function blockAt(){const h=raycast(eye(),lookDir(),PLAYER_STATS.reach);return h;}
 function updateInteraction(dt){
-  fireCD-=dt;placeCD-=dt;grenadeCD-=dt;updateAim(dt);
+  fireCD-=dt;placeCD-=dt;grenadeCD-=dt;meleeCD-=dt;updateAim(dt);
   const h=blockAt();
   if(h){outline.visible=true;outline.position.set(h.x+0.5,h.y+0.5,h.z+0.5);}else outline.visible=false;
   const item=HOTBAR[slot];
@@ -6930,10 +6979,15 @@ function updateInteraction(dt){
   else if(item==='grenade'){if(mouseL){tryThrowGrenade();mouseL=false;}breakTarget=null;}
   else if(item==='grapple'){if(mouseL){tryFireGrapple();mouseL=false;}breakTarget=null;}
   else{
-    if(mouseL&&h){const k=h.x+','+h.y+','+h.z;if(breakTarget!==k){breakTarget=k;breakProg=0;}
+    // M30 melee: the mine/attack action swings at an enemy in reach in front of the aimed block (short cooldown); no digging through it
+    const foe=mouseL&&player.alive?meleeTarget(eye(),lookDir(),TOOLS.meleeReach,h?h.t:undefined):null;
+    if(foe){if(meleeCD<=0){const m=meleeAttack(eye(),lookDir(),item,h?h.t:undefined);meleeCD=TOOLS.meleeCD;
+        if(m){const p=new T.Vector3(m.z.pos.x,m.z.pos.y+m.z.h*0.6,m.z.pos.z);emit(p,0x8a1010,6,3,0.07,1,0.4);noiseBurst(0.07,item==='axe'?500:800,0.25,'lowpass');tone(item==='axe'?110:160,70,0.08,0.06,'square');}}
+      breakTarget=null;breakProg=0;}
+    else if(mouseL&&h){const k=h.x+','+h.y+','+h.z;if(breakTarget!==k){breakTarget=k;breakProg=0;}
       const bd=BD[h.b];if(h.b===B.CHEST&&landmarkSealed(h.x,h.y,h.z)){toast(starfallOfChest(h.x,h.y,h.z)?'The impact cache is sealed: defeat the Starborn':'The spire chest is sealed: defeat its guardians');mouseL=false;breakTarget=null;}
       else if(!canBreak(h.b)){if(!h.warned){toast(`Need a better pickaxe for ${bd.name}`);}mouseL=false;breakTarget=null;}
-      else{const tt=breakTime(h.b);breakProg+=dt/tt;if(Math.random()<dt*10)emit(new T.Vector3(h.x+0.5+h.nx*0.55,h.y+0.5+h.ny*0.55,h.z+0.5+h.nz*0.55),tileColor(bd.tex[1]),1,2,0.06,1,0.3);
+      else{const tt=breakTime(h.b,item);breakProg+=dt/tt;if(Math.random()<dt*10)emit(new T.Vector3(h.x+0.5+h.nx*0.55,h.y+0.5+h.ny*0.55,h.z+0.5+h.nz*0.55),tileColor(bd.tex[1]),1,2,0.06,1,0.3);
         if(breakProg>=1){breakBlock(h);breakTarget=null;breakProg=0;}}}
     else{breakTarget=null;breakProg=0;}
     if(mouseR&&h&&placeCD<=0&&!held('sprint')&&interactBlock(h)){placeCD=0.35;mouseR=false;}
@@ -6944,6 +6998,7 @@ function updateInteraction(dt){
       else if(slabMerges(h,b)){if((gameMode.infinite||inv[b]>0)&&!boxHits(h.x,h.y,h.z)){setBlock(h.x,h.y,h.z,SHAPE_BASE[b]);consumeBlock(b);noiseBurst(0.06,800,0.15);updateHotbar();}}
       else if((gameMode.infinite||inv[b]>0)&&!getBlockSolid(x,y,z)&&!boxHits(x,y,z)){setBlock(x,y,z,placedId(b,lookDir()));consumeBlock(b);noiseBurst(0.06,800,0.15);updateHotbar();}}
   }
+  animHeldTool(dt,!!breakTarget);
   if(breakTarget&&h){crack.visible=true;crack.position.copy(outline.position);crack.material.opacity=Math.min(1,breakProg)*0.85;}else crack.visible=false;
   document.getElementById('breakbar').style.width=(breakTarget?Math.min(1,breakProg)*100:0)+'%';
   document.getElementById('breakwrap').style.opacity=breakTarget?1:0;
@@ -6984,7 +7039,7 @@ let craftTab='all',invHeld=-1,invHover=-1,dragFrom=-1,dragMoved=false,dragX=0,dr
 const dragGhost=document.createElement('canvas');dragGhost.id='dragghost';dragGhost.width=dragGhost.height=48;dragGhost.style.display='none';document.body.appendChild(dragGhost);
 function invSlotEl(i){const it=HOTBAR[i];const d=document.createElement('div');d.className='islot';d.dataset.i=i;d.appendChild(iconFor(it));
   if(i<HOTBAR_SIZE){const k=document.createElement('i');k.textContent=i+1;d.appendChild(k);}
-  const n=document.createElement('em');const cnt=slotCount(it);n.textContent=it==null?'':(gameMode.infinite&&typeof it==='number')?'∞':cnt;d.appendChild(n);
+  const n=document.createElement('em');const cnt=slotCount(it);n.textContent=it==null||it==='spade'||it==='axe'?'':(gameMode.infinite&&typeof it==='number')?'∞':cnt;d.appendChild(n);
   if(it!=null&&!cnt&&it!=='gun'&&!(gameMode.infinite&&typeof it==='number'))d.classList.add('zero');if(it==null)d.classList.add('free');
   if(i===invHeld)d.classList.add('held');if(i===slot)d.classList.add('cur');
   d.onpointerenter=()=>{invHover=i;invInfo();};d.onpointerleave=()=>{if(invHover===i){invHover=-1;invInfo();}};return d;}
@@ -7104,6 +7159,10 @@ function iconFor(item){const c=document.createElement('canvas');c.width=c.height
     x.globalAlpha=1;x.strokeStyle='rgba(0,0,0,.45)';x.lineWidth=1.5;x.beginPath();x.moveTo(24,6);x.lineTo(40,18);x.lineTo(34,40);x.lineTo(14,40);x.lineTo(8,18);x.closePath();x.stroke();return c;}
   if(item==='grenade'){x.fillStyle='#4a5640';x.beginPath();x.ellipse(24,28,11,13,0,0,7);x.fill();x.fillStyle='#2a3024';x.fillRect(13,22,22,2);x.fillRect(13,30,22,2);x.fillStyle='#8a8e96';x.fillRect(20,11,8,6);x.fillRect(27,12,3,14);x.strokeStyle='#8a8e96';x.lineWidth=2;x.beginPath();x.arc(16,12,4,0,7);x.stroke();return c;}
   if(item==='grapple'){x.fillStyle='#2a2636';x.fillRect(8,22,22,9);x.fillRect(12,29,6,12);x.fillStyle='#9a70ff';x.fillRect(10,24,18,5);x.strokeStyle='#c8b0ff';x.lineWidth=2;x.beginPath();x.moveTo(30,26);x.quadraticCurveTo(36,14,42,8);x.stroke();x.fillStyle='#e0d8ff';x.beginPath();x.moveTo(42,4);x.lineTo(46,10);x.lineTo(40,11);x.closePath();x.fill();return c;}
+  if(item==='spade'||item==='axe'){const col=['#a0784a','#8c8c8c','#d8d0c8','#46dee2','#ff6a28'][Math.max(0,toolTier(item))];
+    x.strokeStyle='#5a3a1e';x.lineWidth=5;x.lineCap='round';x.beginPath();x.moveTo(12,40);x.lineTo(32,14);x.stroke();x.fillStyle=col;x.strokeStyle='rgba(0,0,0,.5)';x.lineWidth=1.5;
+    if(item==='spade'){x.beginPath();x.moveTo(30,16);x.lineTo(38,4);x.lineTo(46,10);x.lineTo(42,22);x.lineTo(34,20);x.closePath();x.fill();x.stroke();}
+    else{x.beginPath();x.moveTo(26,10);x.lineTo(34,4);x.quadraticCurveTo(46,10,42,24);x.lineTo(34,20);x.closePath();x.fill();x.stroke();}return c;}
   if(item==='gun'){x.fillStyle='#2b2e35';x.fillRect(6,16,34,8);x.fillRect(26,22,8,16);x.fillStyle='#8a6a4a';x.fillRect(27,24,6,12);x.fillStyle='#15161a';x.fillRect(4,18,4,4);x.fillRect(16,24,6,3);return c;}
   const bd=BD[item];const t=bd.tex;const tile=(i)=>[(i%ATC)*CELL+GUT,Math.floor(i/ATC)*CELL+GUT];
   const s=22/TS;const draw=(ti,a,b,cc,d,e,f,dark)=>{x.setTransform(a,b,cc,d,e,f);const [sx,sy]=tile(ti);x.drawImage(atlasCanvas,sx,sy,TS,TS,0,0,TS,TS);if(dark){x.fillStyle=`rgba(0,0,0,${dark})`;x.globalCompositeOperation='source-atop';x.fillRect(0,0,TS,TS);x.globalCompositeOperation='source-over';}};
@@ -7112,10 +7171,10 @@ function iconFor(item){const c=document.createElement('canvas');c.width=c.height
     if(STAIR_OF[item]){draw(t[1],s/2,-s/4,0,s/2,35,18.5,0.42);draw(t[0],s,s/2,-s/2,s/4,24,2,0);draw(t[1],s,s/2,0,s/2,13,7.5,0.25);}x.setTransform(1,0,0,1,0,0);return c;}
   draw(t[1],s,s/2,0,s,2,13,0.25);draw(t[1],s,-s/2,0,s,24,24,0.42);draw(t[0],s,s/2,-s,s/2,24,2,0);x.setTransform(1,0,0,1,0,0);return c;}
 function buildHotbar(){hotbarEl.innerHTML='';HOTBAR.slice(0,HOTBAR_SIZE).forEach((it,i)=>{const d=document.createElement('div');d.className='slot';d.appendChild(iconFor(it));const k=document.createElement('i');k.textContent=SLOT_KEYS[i]||'';d.appendChild(k);const n=document.createElement('em');d.appendChild(n);hotbarEl.appendChild(d);});updateHotbar();}
-function updateHotbar(){[...hotbarEl.children].forEach((d,i)=>{d.classList.toggle('sel',i===slot);const it=HOTBAR[i];const n=d.querySelector('em');const cnt=slotCount(it);n.textContent=it==null?'':(gameMode.infinite&&typeof it==='number')?'∞':cnt;d.classList.toggle('empty',it!=='gun'&&!cnt&&!(gameMode.infinite&&typeof it==='number'));d.classList.toggle('free',it==null);});
+function updateHotbar(){[...hotbarEl.children].forEach((d,i)=>{d.classList.toggle('sel',i===slot);const it=HOTBAR[i];const n=d.querySelector('em');const cnt=slotCount(it);n.textContent=it==null||it==='spade'||it==='axe'?'':(gameMode.infinite&&typeof it==='number')?'∞':cnt;d.classList.toggle('empty',it!=='gun'&&!cnt&&!(gameMode.infinite&&typeof it==='number'));d.classList.toggle('free',it==null);});
   const it=HOTBAR[slot];document.getElementById('itemname').textContent=it==='gun'?gunName()+(guns.length>1?` (${guns.indexOf(gun)+1}/${guns.length} · Q to switch)`:''):itemLabel(it);}
-function itemLabel(it){return it==null?'Empty slot':it==='gun'?gunName():it==='grenade'?'Frag Grenade':it==='grapple'?'Charged Grapple':it==='cell'?'Energy Cells':RES_ICON[it]?it[0].toUpperCase()+it.slice(1):BD[it].name;}
-function selectSlot(i){const N=HOTBAR_SIZE;slot=((i%N)+N)%N;updateHotbar();const it=HOTBAR[slot];if(gunMesh)gunMesh.visible=it==='gun';buildHeld(typeof it==='number'?it:null);showHeldGrenade(it==='grenade');const n=document.getElementById('itemname');n.style.opacity=1;clearTimeout(n._t);n._t=setTimeout(()=>n.style.opacity=0,1500);}
+function itemLabel(it){return it==null?'Empty slot':it==='gun'?gunName():it==='grenade'?'Frag Grenade':it==='grapple'?'Charged Grapple':(it==='spade'||it==='axe')?toolName(it):it==='cell'?'Energy Cells':RES_ICON[it]?it[0].toUpperCase()+it.slice(1):BD[it].name;}
+function selectSlot(i){const N=HOTBAR_SIZE;slot=((i%N)+N)%N;updateHotbar();const it=HOTBAR[slot];if(gunMesh)gunMesh.visible=it==='gun';buildHeld(typeof it==='number'?it:null);showHeldGrenade(it==='grenade');showHeldTool(it);const n=document.getElementById('itemname');n.style.opacity=1;clearTimeout(n._t);n._t=setTimeout(()=>n.style.opacity=0,1500);}
 let lastRing=-1;
 function updateDistHUD(){const d=playerDist(),ri=ringIndex(d),R=DANGER_RINGS[ri];const el=document.getElementById('dist');
   el.innerHTML=`<div class="dn">${Math.round(d)} m <small>· best ${Math.round(bestDist)} m</small></div><div class="dr" style="--rc:#${R.tint.toString(16).padStart(6,'0')}">${R.name} · danger ${ri+1}/${DANGER_RINGS.length}</div>`+(gameMode.goals?`<div class="dg">${nextGoal()?`Next goal ${nextGoal()} m · run ${Math.round(runBest)} m`:`All goals cleared · run ${Math.round(runBest)} m`}</div>`:'')+spireHint(d);
@@ -7127,7 +7186,7 @@ let toastT=null;function toast(s){const t=document.getElementById('toast');t.tex
 let hmT=null;function hitMarker(head){const h=document.getElementById('hitm');h.style.opacity=1;h.style.color=head?'#ff5040':'#fff';clearTimeout(hmT);hmT=setTimeout(()=>h.style.opacity=0,120);}
 let bannerT=0;function banner(s){const b=document.getElementById('banner');b.textContent=s;b.style.opacity=1;clearTimeout(bannerT);bannerT=setTimeout(()=>b.style.opacity=0,3500);}
 
-on('layoutChanged',()=>{if(typeof hotbarEl!=='undefined'&&hotbarEl.children.length){buildHotbar();const it=HOTBAR[slot];if(gunMesh)gunMesh.visible=it==='gun';buildHeld(typeof it==='number'?it:null);showHeldGrenade(it==='grenade');}});
+on('layoutChanged',()=>{if(typeof hotbarEl!=='undefined'&&hotbarEl.children.length){buildHotbar();const it=HOTBAR[slot];if(gunMesh)gunMesh.visible=it==='gun';buildHeld(typeof it==='number'?it:null);showHeldGrenade(it==='grenade');showHeldTool(it);}});
 
 // compass hint toward the nearest Void Spire once the player is in the outer ring
 let spireCache={t:-1,L:null};
@@ -7628,7 +7687,7 @@ renderModeCards();document.getElementById('play').onclick=startGame;
 document.getElementById('loading').textContent=`World seed ${SEED} · textures ${TS}px generated in ${Math.round(texGenMs)} ms`;document.getElementById('play').disabled=false;
 requestAnimationFrame(frame);
 // debug/test hooks
-window.GAME={TOUCH,shelves,shelfPut,shelfTake,shelfViews,announceRestoredStructures,rayShape,raycast,STEP_GLIDE,SHAPES,STAIR_OF,stairFacing,placedId,collideBox,touch:()=>GAME_TOUCH,fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
+window.GAME={TOUCH,TOOLS,breakTime,meleeDamage,meleeTarget,toolName,get spadeTier(){return spadeTier;},set spadeTier(v){spadeTier=v;},get axeTier(){return axeTier;},set axeTier(v){axeTier=v;},get meleeCD(){return meleeCD;},shelves,shelfPut,shelfTake,shelfViews,announceRestoredStructures,rayShape,raycast,STEP_GLIDE,SHAPES,STAIR_OF,stairFacing,placedId,collideBox,touch:()=>GAME_TOUCH,fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
   look:(yaw,pitch)=>{player.yaw=yaw;player.pitch=pitch;},setTimeScale:s=>timeScale=s,setMouse:(l,r)=>{mouseL=l;mouseR=r;},craft:toggleCraft,get pickTier(){return pickTier;},set pickTier(v){pickTier=v;},hurt:hurtPlayer,
   setPreset:n=>applyPreset(n,true),nearestLandmark,nearestStarfall,starfallInCell,removeZombie,STARFALL,updateStarfall,landmarkSealed,foundLandmarks,VOID_LOOK,get voidF(){return voidF;},toggleMap,MAPMEM,mapMemColumn,get bigMapR(){return MM.bigR;},set bigMapR(v){MM.bigR=v;},voidFx:()=>VFX,ambience:()=>({zone:AMB.zone,wind:AMB.w,rumble:AMB.r,bed:!!AMB.bed}),get volume(){return sfxVolume;},setVolume,setFxVolume,setAmbVolume,master:()=>MASTER&&MASTER.gain.value,showPause:on=>{paused=!!on;document.getElementById('pause').style.display=on?'flex':'none';if(on)renderSettings();},options:()=>({vol:sfxVolume,fx:fxVolume,amb:ambVolume,sens:mouseSens,fov:baseFov,camFov:camera.fov,busFx:BUS_FX&&BUS_FX.gain.value,busAmb:BUS_AMB&&BUS_AMB.gain.value,mus:musVolume,busMus:BUS_MUS&&BUS_MUS.gain.value}),spawnWisp:(x,y,z)=>spawnZombie(x,y,z,'shardwisp'),trySpawnZombie,ambienceZone,get mapOpen(){return mapOpen;},landmarkState,closeChest,LANDMARK,updateLandmarks,serializeGame,get preset(){return gfx.preset;},get texGenMs(){return texGenMs;},setRD,get gun(){return gun;},get gunTiers(){return gunTiers;},setGunTier:(i,t)=>{gunTiers[i]=t;fire('gunChanged');},gunStat,gunName,gunAmmo,ammoKey,canCraft,recipeLocked,GUN_TIERS,BLASTPROOF_HARD,damageZombie,STORMHULK_CHANCE,get guns(){return guns;},unlockGun,cycleGun,GUNS,throwGrenade:()=>{const r=throwGrenade(eye(),lookDir());updateHotbar();return r;},explode,projectiles,fuses,igniteCharge,lookDir:()=>lookDir().clone(),eye:()=>eye().clone(),get aim(){return aimAmt;},
   pendingChunks:()=>{let n=0;for(const c of chunks.values()){const dx=c.cx-Math.floor(player.pos.x/CS),dz=c.cz-Math.floor(player.pos.z/CS);if(c.dirty&&dx*dx+dz*dz<=(RD+0.5)*(RD+0.5))n++;}return n;}};
