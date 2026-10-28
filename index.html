@@ -5389,6 +5389,9 @@ function explode(c,radius,dmg,breaks,owner){
 //   chests: key -> {slots:[{k,n}|null x STRUCT.chest.slots], face:[nx,0,nz] latch side}
 // Events: 'doorChanged'(key, door|null), 'doorHit'(door), 'doorBreached'(door), 'chestChanged'(key), 'chestSpilled'(key,items)
 const doors=new Map(),chests=new Map();
+// M29 Trophy Shelf display: shelves key -> trophy block id shown on top (Gloamheart Lantern / Ashwing Banner). Event 'shelfChanged'(key, id|0)
+const shelves=new Map();
+const SHELF_TROPHIES=new Set([B.TROPHY,B.BANNER]);
 const skey=(x,y,z)=>x+','+y+','+z;
 const isDoorId=b=>b===B.DOOR||b===B.DOOR_TOP||b===B.DOOR_OPEN||b===B.DOOR_TOP_OPEN;
 const isDoorTop=b=>b===B.DOOR_TOP||b===B.DOOR_TOP_OPEN;
@@ -5412,6 +5415,9 @@ function chestPut(c,k,n){k=String(k);n=Math.min(n,itemCount(k)|0);let moved=0;co
   for(const s of c.slots)if(s&&s.k===k&&s.n<S&&moved<n){const m=Math.min(S-s.n,n-moved);s.n+=m;moved+=m;}
   for(let i=0;i<c.slots.length&&moved<n;i++)if(!c.slots[i]){const m=Math.min(S,n-moved);c.slots[i]={k,n:m};moved+=m;}
   if(moved)addItem(k,-moved);return moved;}
+function shelfPut(x,y,z,k){k=+k;const key=skey(x,y,z);if(getBlock(x,y,z)!==B.SHELF||shelves.has(key)||!SHELF_TROPHIES.has(k))return false;
+  if(!gameMode.infinite){if(!(inv[k]>0))return false;addItem(k,-1);}shelves.set(key,k);fire('shelfChanged',key,k);return true;}
+function shelfTake(x,y,z){const key=skey(x,y,z),k=shelves.get(key);if(!k)return 0;shelves.delete(key);if(!gameMode.infinite)addItem(k,1);fire('shelfChanged',key,0);return k;}
 function chestTake(c,i){const s=c.slots[i];if(!s)return 0;addItem(s.k,s.n);c.slots[i]=null;return s.n;}
 // called whenever a block is removed (mining or explosions): clean up door partner halves and spill chest contents to the player
 function onBlockRemoved(x,y,z,old,byPlayer){
@@ -5419,9 +5425,10 @@ function onBlockRemoved(x,y,z,old,byPlayer){
     const oy=isDoorTop(old)?ly:ly+1;if(isDoorId(getBlock(x,oy,z)))changeBlocks([[x,oy,z,0]]);
     if(byPlayer&&isDoorTop(old))addItem(B.DOOR,1); // lower half carries the drop; mining the top refunds here
     fire('doorChanged',k,null);return d;}
+  if(old===B.SHELF){const key=skey(x,y,z),k=shelves.get(key);if(!k)return;shelves.delete(key);addItem(k,1);fire('shelfChanged',key,0);fire('shelfSpilled',key,k);return;}
   if(old===B.CHEST){const k=skey(x,y,z);const c=chests.get(k);chests.delete(k);if(!c)return;const items=c.slots.filter(Boolean);
     for(const s of items)addItem(s.k,s.n);fire('chestSpilled',k,items);}}
-on('blocksChanged',list=>{for(const [x,y,z,b,old] of list)if(b!==old&&(isDoorId(old)||old===B.CHEST)&&!isDoorId(b))onBlockRemoved(x,y,z,old);});
+on('blocksChanged',list=>{for(const [x,y,z,b,old] of list)if(b!==old&&(isDoorId(old)||old===B.CHEST||old===B.SHELF)&&!isDoorId(b))onBlockRemoved(x,y,z,old);});
 // zombie AI hook: a walker pressing against a closed door claws it down over STRUCT.door.breachTime seconds
 function zombieDoorPush(z,dt,dirX,dirZ){const reach=Math.max(z.hw+0.3,STRUCT.door.clawGap+0.12);const fx=Math.floor(z.pos.x+dirX*reach),fz=Math.floor(z.pos.z+dirZ*reach);
   for(const yy of [Math.floor(z.pos.y+0.1),Math.floor(z.pos.y+1.1)]){const d=doorAt(fx,yy,fz);if(!d||d.open)continue;
@@ -5681,7 +5688,7 @@ function serializeGame(){const edits={};for(const [k,m] of editLog){const a=[];f
     player:{pos:v3a(player.pos),yaw:player.yaw,pitch:player.pitch,hp:player.hp,flying:!!player.flying},spawn:v3a(spawnPoint),
     inv:Object.assign({},inv),res:Object.assign({},res),pickTier,guns:guns.slice(),gunTiers:gunTiers.slice(),gun,slot,kills,day,worldTime,clock,
     doors:[...doors.values()].map(d=>({x:d.x,y:d.y,z:d.z,axis:d.axis,open:d.open,hp:d.hp})),
-    chests:[...chests.entries()].map(([k,c])=>({k,slots:c.slots,face:c.face,grave:c.grave||undefined})),edits,
+    chests:[...chests.entries()].map(([k,c])=>({k,slots:c.slots,face:c.face,grave:c.grave||undefined})),shelves:[...shelves.entries()],edits,
     difficulty:difficultyId,camp,recallCd:recall.cd,landmarks:serializeLandmarks(),layout:HOTBAR.slice()};}
 // short summary for the title screen
 function saveSummary(s){return {mode:(MODES[s.mode]||MODES.survival).name,difficulty:MODES[s.mode]&&MODES[s.mode].enemies&&DIFFICULTY[s.difficulty]?DIFFICULTY[s.difficulty].name:'',day:s.day,dist:Math.round(Math.hypot(s.player.pos[0],s.player.pos[2])),kills:s.kills,savedAt:s.savedAt};}
@@ -5700,6 +5707,7 @@ function deserializeGame(s){if(!s||s.v!==SAVE_VERSION||s.seed!==SEED)return null
   spawnPoint.set(s.spawn[0],s.spawn[1],s.spawn[2]);
   for(const [k,d] of doors){doors.delete(k);fire('doorChanged',k,null);}
   for(const d of s.doors){const o={x:d.x,y:d.y,z:d.z,axis:d.axis,open:d.open,hp:d.hp};doors.set(skey(d.x,d.y,d.z),o);}
+  for(const k of shelves.keys())fire('shelfChanged',k,0);shelves.clear();for(const [k,id] of (s.shelves||[]))if(SHELF_TROPHIES.has(+id))shelves.set(k,+id); // pre-M29 saves have none
   chests.clear();for(const c of s.chests)chests.set(c.k,{slots:c.slots,face:c.face||[0,0,1],grave:!!c.grave});
   if(Array.isArray(s.layout)&&s.layout.length>=36&&s.layout.length<=PACK_SIZE){HOTBAR.fill(null);for(let i=0;i<s.layout.length;i++)HOTBAR[i]=s.layout[i];ensureLayout();} // 36-slot saves (pre-M27) gain the new backpack row
   else{resetLayout();const it=LEGACY_HOTBAR[s.slot],j=HOTBAR.indexOf(it);slot=j>=0&&j<HOTBAR_SIZE?j:0;} // pre-inventory save
@@ -5707,7 +5715,7 @@ function deserializeGame(s){if(!s||s.v!==SAVE_VERSION||s.seed!==SEED)return null
   difficultyId=DIFFICULTY[s.difficulty]?s.difficulty:'standard';difficulty=DIFFICULTY[difficultyId];camp=s.camp||null;recall.t=-1;recall.cd=s.recallCd||0;deserializeLandmarks(s.landmarks);
   clearZombies();fire('modeChanged',gameModeId);return live;}
 // call after the host applied `live` writes, so door views exist on top of the restored voxels
-function announceRestoredStructures(){for(const [k,d] of doors)fire('doorChanged',k,d);fire('difficultyChanged',difficultyId);fire('campChanged',camp);fire('gameLoaded');}
+function announceRestoredStructures(){for(const [k,d] of doors)fire('doorChanged',k,d);for(const [k,id] of shelves)fire('shelfChanged',k,id);fire('difficultyChanged',difficultyId);fire('campChanged',camp);fire('gameLoaded');}
 
 // ===== client/app_state.js =====
 // client-only UI/session state (not game rules)
@@ -6826,7 +6834,30 @@ on('doorHit',d=>{const v=doorViews.get(d.x+','+d.y+','+d.z);if(v)v.userData.shak
   const dist=Math.hypot(player.pos.x-d.x,player.pos.z-d.z);if(dist<28){noiseBurst(0.12,420,0.35*(1-dist/28),'lowpass');tone(80,50,0.1,0.08*(1-dist/28),'square');}
   if(Math.random()<0.5)emit(new T.Vector3(d.x+0.5,d.y+0.6+Math.random(),d.z+0.5),tileColor(TL.doorLo),4,2.5,0.05,1,0.5);});
 on('doorBreached',d=>{noiseBurst(0.35,500,0.6,'lowpass');toast('A door was smashed!');});
-function updateDoors(dt){for(const v of doorViews.values()){const ud=v.userData;const k=v.position.x-0.5+','+v.position.y+','+(v.position.z-0.5);
+// ---- Trophy Shelf display (M29): little models standing on the shelf top ----
+const shelfViews=new Map();
+const shelfMetal=new T.MeshStandardMaterial({color:0x4a5568,roughness:0.45,metalness:0.85});
+function makeShelfTrophy(id){const g=new T.Group(),parts={};
+  if(id===B.TROPHY){ // Gloamheart Lantern: voltsteel cage, base and cap plates, a glowing teal-violet core that slowly turns
+    const plate=new T.BoxGeometry(0.34,0.04,0.34);const lo=new T.Mesh(plate,shelfMetal),hi=new T.Mesh(plate,shelfMetal);lo.position.y=0.02;hi.position.y=0.42;g.add(lo,hi);
+    const post=new T.BoxGeometry(0.035,0.38,0.035);for(const [a,b] of [[-1,-1],[1,-1],[1,1],[-1,1]]){const m=new T.Mesh(post,shelfMetal);m.position.set(a*0.145,0.22,b*0.145);g.add(m);}
+    const ring=new T.Mesh(new T.TorusGeometry(0.06,0.012,6,12),shelfMetal);ring.rotation.x=Math.PI/2;ring.position.y=0.47;g.add(ring);
+    const core=new T.Mesh(new T.OctahedronGeometry(0.1,0),new T.MeshStandardMaterial({color:0x7fe8ff,emissive:0x6a4cff,emissiveIntensity:1.6,roughness:0.2,metalness:0.1}));core.position.y=0.22;g.add(core);parts.spin=core;}
+  else{ // Ashwing Banner: a little pole with crossbar and a charcoal pennant crossed by ember veins
+    const wood=new T.MeshStandardMaterial({color:0x5a3a22,roughness:0.9});const pole=new T.Mesh(new T.CylinderGeometry(0.018,0.022,0.62,6),wood);pole.position.y=0.31;g.add(pole);
+    const foot=new T.Mesh(new T.CylinderGeometry(0.1,0.12,0.04,8),shelfMetal);foot.position.y=0.02;g.add(foot);
+    const bar=new T.Mesh(new T.BoxGeometry(0.34,0.025,0.025),wood);bar.position.set(0,0.58,0.03);g.add(bar);
+    const cloth=new T.Group();cloth.position.set(0,0.57,0.05);g.add(cloth);
+    const cl=new T.Mesh(new T.BoxGeometry(0.3,0.36,0.012),new T.MeshStandardMaterial({color:0x2a2024,roughness:0.95}));cl.position.y=-0.18;cloth.add(cl);
+    const ember=new T.MeshStandardMaterial({color:0xff7a30,emissive:0xff5010,emissiveIntensity:1.4});
+    for(const [x,y,r] of [[0,-0.12,0.5],[-0.05,-0.22,-0.6],[0.05,-0.28,0.7]]){const v=new T.Mesh(new T.BoxGeometry(0.2,0.02,0.016),ember);v.position.set(x,y,0.002);v.rotation.z=r;cloth.add(v);}
+    const tip=new T.Mesh(new T.ConeGeometry(0.15,0.1,3),new T.MeshStandardMaterial({color:0x2a2024,roughness:0.95}));tip.rotation.z=Math.PI;tip.scale.z=0.08;tip.position.y=-0.41;cloth.add(tip);parts.sway=cloth;}
+  g.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.userData=parts;return g;}
+on('shelfChanged',(k,id)=>{const v=shelfViews.get(k);if(v){scene.remove(v);shelfViews.delete(k);}if(!id)return;
+  const [x,y,z]=k.split(',').map(Number),m=makeShelfTrophy(id);m.position.set(x+0.5,y+1,z+0.5);m.userData.id=id;scene.add(m);shelfViews.set(k,m);});
+on('shelfSpilled',(k,id)=>toast(BD[id].name+' recovered from the shelf'));
+function updateShelves(dt){const t=performance.now()/1000;for(const v of shelfViews.values()){const u=v.userData;if(u.spin){u.spin.rotation.y+=dt*0.8;u.spin.position.y=0.22+Math.sin(t*2)*0.015;}if(u.sway)u.sway.rotation.x=Math.sin(t*1.3)*0.08;}}
+function updateDoors(dt){updateShelves(dt);for(const v of doorViews.values()){const ud=v.userData;const k=v.position.x-0.5+','+v.position.y+','+(v.position.z-0.5);
   const d=doors.get(k);const want=d&&d.open?-Math.PI/2:0;ud.ang+=(want-ud.ang)*Math.min(1,dt*10);
   let j=0;if(ud.shake>0){ud.shake-=dt;j=Math.sin(ud.shake*90)*0.05*ud.shake*4;}ud.pivot.rotation.y=ud.ang+j;}}
 // ---- stash chest UI ----
@@ -6924,7 +6955,11 @@ function slabMerges(h,b){return h.b===b&&h.ny===1&&SHAPES[b]&&!STAIR_OF[b]&&SHAP
 function getBlockSolid(x,y,z){const b=getBlock(x,y,z);return b&&b!==B.WATER;}
 // F / right-click on a door toggles it, on a chest opens the stash UI. Returns true if something was used.
 function interactBlock(h){if(!h||!player.alive)return false;if(isDoorId(h.b)){const d=toggleDoor(h.x,h.y,h.z);if(d&&!d.open&&(boxHits(d.x,d.y,d.z)||boxHits(d.x,d.y+1,d.z)))setDoorOpen(d,true);return !!d;}
-  if(h.b===B.CHEST){openChest(h.x,h.y,h.z);return true;}return false;}
+  if(h.b===B.CHEST){openChest(h.x,h.y,h.z);return true;}
+  if(h.b===B.SHELF){const k=shelves.get(skey(h.x,h.y,h.z)),it=HOTBAR[slot];
+    if(k){shelfTake(h.x,h.y,h.z);toast(BD[k].name+' taken off the shelf');noiseBurst(0.05,1200,0.12);updateHotbar();return true;}
+    if(SHELF_TROPHIES.has(it)&&(gameMode.infinite||inv[it]>0)){shelfPut(h.x,h.y,h.z,it);toast(BD[it].name+' displayed on the Trophy Shelf');tone(330,495,0.18,0.05,'triangle');updateHotbar();return true;}}
+  return false;}
 function boxHits(x,y,z){const ov=(e)=>x+1>e.pos.x-e.hw&&x<e.pos.x+e.hw&&y+1>e.pos.y&&y<e.pos.y+e.h&&z+1>e.pos.z-e.hw&&z<e.pos.z+e.hw;if(ov(player))return true;for(const zb of zombies)if(!zb.dead&&ov(zb))return true;return false;}
 function breakBlock(h){const bd=BD[h.b];setBlock(h.x,h.y,h.z,0);onBlockRemoved(h.x,h.y,h.z,h.b,true);emit(new T.Vector3(h.x+0.5,h.y+0.5,h.z+0.5),tileColor(bd.tex[1]),16,4,0.12,1,0.7);noiseBurst(0.1,600,0.25);
   const got=harvest(h.b);if(got&&typeof got.key==='string')toast(`+1 ${got.key}`);
@@ -7593,7 +7628,7 @@ renderModeCards();document.getElementById('play').onclick=startGame;
 document.getElementById('loading').textContent=`World seed ${SEED} · textures ${TS}px generated in ${Math.round(texGenMs)} ms`;document.getElementById('play').disabled=false;
 requestAnimationFrame(frame);
 // debug/test hooks
-window.GAME={TOUCH,rayShape,raycast,STEP_GLIDE,SHAPES,STAIR_OF,stairFacing,placedId,collideBox,touch:()=>GAME_TOUCH,fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
+window.GAME={TOUCH,shelves,shelfPut,shelfTake,shelfViews,announceRestoredStructures,rayShape,raycast,STEP_GLIDE,SHAPES,STAIR_OF,stairFacing,placedId,collideBox,touch:()=>GAME_TOUCH,fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
   look:(yaw,pitch)=>{player.yaw=yaw;player.pitch=pitch;},setTimeScale:s=>timeScale=s,setMouse:(l,r)=>{mouseL=l;mouseR=r;},craft:toggleCraft,get pickTier(){return pickTier;},set pickTier(v){pickTier=v;},hurt:hurtPlayer,
   setPreset:n=>applyPreset(n,true),nearestLandmark,nearestStarfall,starfallInCell,removeZombie,STARFALL,updateStarfall,landmarkSealed,foundLandmarks,VOID_LOOK,get voidF(){return voidF;},toggleMap,MAPMEM,mapMemColumn,get bigMapR(){return MM.bigR;},set bigMapR(v){MM.bigR=v;},voidFx:()=>VFX,ambience:()=>({zone:AMB.zone,wind:AMB.w,rumble:AMB.r,bed:!!AMB.bed}),get volume(){return sfxVolume;},setVolume,setFxVolume,setAmbVolume,master:()=>MASTER&&MASTER.gain.value,showPause:on=>{paused=!!on;document.getElementById('pause').style.display=on?'flex':'none';if(on)renderSettings();},options:()=>({vol:sfxVolume,fx:fxVolume,amb:ambVolume,sens:mouseSens,fov:baseFov,camFov:camera.fov,busFx:BUS_FX&&BUS_FX.gain.value,busAmb:BUS_AMB&&BUS_AMB.gain.value,mus:musVolume,busMus:BUS_MUS&&BUS_MUS.gain.value}),spawnWisp:(x,y,z)=>spawnZombie(x,y,z,'shardwisp'),trySpawnZombie,ambienceZone,get mapOpen(){return mapOpen;},landmarkState,closeChest,LANDMARK,updateLandmarks,serializeGame,get preset(){return gfx.preset;},get texGenMs(){return texGenMs;},setRD,get gun(){return gun;},get gunTiers(){return gunTiers;},setGunTier:(i,t)=>{gunTiers[i]=t;fire('gunChanged');},gunStat,gunName,gunAmmo,ammoKey,canCraft,recipeLocked,GUN_TIERS,BLASTPROOF_HARD,damageZombie,STORMHULK_CHANCE,get guns(){return guns;},unlockGun,cycleGun,GUNS,throwGrenade:()=>{const r=throwGrenade(eye(),lookDir());updateHotbar();return r;},explode,projectiles,fuses,igniteCharge,lookDir:()=>lookDir().clone(),eye:()=>eye().clone(),get aim(){return aimAmt;},
   pendingChunks:()=>{let n=0;for(const c of chunks.values()){const dx=c.cx-Math.floor(player.pos.x/CS),dz=c.cz-Math.floor(player.pos.z/CS);if(c.dirty&&dx*dx+dz*dz<=(RD+0.5)*(RD+0.5))n++;}return n;}};
