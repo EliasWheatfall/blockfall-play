@@ -111,7 +111,7 @@ body.touch #touchui *{touch-action:none;-webkit-user-select:none}
 .tb small{font:bold 8px sans-serif;letter-spacing:1px;margin-top:2px;opacity:.8}.tb.on{background:rgba(255,210,90,.4);border-color:#ffd25a}
 #tbtns{position:absolute;right:calc(env(safe-area-inset-right) + 12px);bottom:calc(env(safe-area-inset-bottom) + 12px);width:150px;height:150px}
 #tbtns .tbig{position:absolute;width:62px;height:62px}
-#tbtns [data-a=mine]{right:0;top:0;width:70px;height:70px;font-size:24px}#tbtns [data-a=place]{left:0;top:38px}#tbtns [data-a=jump]{right:4px;bottom:0}
+#tbtns [data-a=mine]{right:0;top:0;width:70px;height:70px;font-size:24px}#tbtns [data-a=place]{left:0;top:38px}#tbtns [data-a=jump]{right:4px;bottom:0}#tbtns [data-a=down]{display:none;right:72px;bottom:-6px;width:52px;height:52px}
 #tmenu{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 196px);display:flex;gap:8px}
 #tmenu .sm{width:40px;height:40px;font-size:16px;border-radius:10px}
 body.touch #hotbar{bottom:calc(env(safe-area-inset-bottom) + 6px);pointer-events:auto;padding:3px;gap:2px;touch-action:none}
@@ -123,7 +123,11 @@ body.touch #bossbar{top:calc(env(safe-area-inset-top) + 56px)}
 body.touch #info{top:calc(env(safe-area-inset-top) + 6px);left:calc(env(safe-area-inset-left) + 6px);font-size:11px;padding:5px 8px;line-height:1.4}
 body.touch #dist{right:calc(env(safe-area-inset-right) + 8px);top:calc(env(safe-area-inset-top) + 22px)}
 body.touch #minimap{bottom:auto;top:calc(env(safe-area-inset-top) + 80px);right:calc(env(safe-area-inset-right) + 10px);width:84px;height:84px}
-#tclose{display:none;position:fixed;z-index:50;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 8px);width:44px;height:44px;font-size:20px;border-radius:12px;background:rgba(60,20,20,.75)}
+body.touch #modebadge{bottom:auto;top:calc(env(safe-area-inset-top) + 82px);left:calc(env(safe-area-inset-left) + 6px);font-size:9px;letter-spacing:2px;padding:2px 8px}
+body.touch .panel{touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:10px 14px}
+body.touch .islot,body.touch .cslot{touch-action:none}
+body.touch .invfoot,body.touch #closechest{position:sticky;bottom:0;z-index:3}body.touch .invfoot{background:rgba(10,14,22,.92);padding:4px 0;margin:0 -14px -10px;text-align:center}
+body.touch .invfoot button,body.touch #closechest{margin-top:0!important}
 body.touch .overlay{-webkit-overflow-scrolling:touch;touch-action:pan-y;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 </style></head><body>
 <div id="game"></div>
@@ -5062,7 +5066,7 @@ function respawnPlayer(){player.flying=false;if(gameMode.goals)resetRun();player
 // player locomotion from an input intent {forward,strafe,jump,sprint} (camera yaw drives direction)
 function stepPlayer(dt,inp){
   if(player.grapple&&(!player.alive||inWater(player)))releaseGrapple('cut');
-  const sp=inp.sprint?PS.sprint:PS.walk;const f=inp.forward,s=inp.strafe;
+  const sp=(inp.sprint?PS.sprint:PS.walk)*(inp.mag==null?1:inp.mag);const f=inp.forward,s=inp.strafe;
   const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw);let mx=-sy*f+cy*s,mz=-cy*f-sy*s;const l=Math.hypot(mx,mz);if(l>0){mx/=l;mz/=l;}
   const w=inWater(player);const spd=w?sp*PS.swimFactor:sp;const accel=player.onGround?14:5;
   player.vel.x+=(mx*spd-player.vel.x)*Math.min(1,accel*dt);player.vel.z+=(mz*spd-player.vel.z)*Math.min(1,accel*dt);
@@ -7338,20 +7342,20 @@ document.getElementById('respawn').onclick=respawn;
 // ---------------- Touch controls (phones/tablets) ----------------
 // Auto-on for coarse pointers / touch screens (or ?touch). Desktop path is untouched: nothing here runs unless TOUCH.
 const TOUCH=params.has('touch')||(!params.has('notouch')&&((window.matchMedia&&matchMedia('(pointer: coarse)').matches)||('ontouchstart' in window)));
-const TIN={f:0,s:0,jump:false,sprint:false}; // read by updatePlayer
+const TIN={f:0,s:0,mag:1,jump:false,down:false,sprint:false}; // read by updatePlayer
 let GAME_TOUCH=null;
 if(TOUCH){
   document.body.classList.add('touch');
   const ui=document.createElement('div');ui.id='touchui';
   ui.innerHTML='<div id="tzone"><div id="tbase"><div id="tknob"></div></div></div>'+
-    '<div id="tbtns"><button data-a="mine" class="tb tbig">⛏<small>MINE</small></button><button data-a="place" class="tb tbig">▣<small>PLACE</small></button><button data-a="jump" class="tb tbig">⤒<small>JUMP</small></button></div>'+
-    '<div id="tmenu"><button data-a="bag" class="tb sm">🎒</button><button data-a="map" class="tb sm">◎</button><button data-a="gun" class="tb sm">⟳</button><button data-a="pause" class="tb sm">❚❚</button></div>';
+    '<div id="tbtns"><button data-a="mine" class="tb tbig">⛏<small>MINE</small></button><button data-a="place" class="tb tbig">▣<small>PLACE</small></button><button data-a="jump" class="tb tbig">⤒<small>JUMP</small></button><button data-a="down" class="tb tbig">⤓<small>DOWN</small></button></div>'+
+    '<div id="tmenu"><button data-a="bag" class="tb sm">🎒</button><button data-a="map" class="tb sm">◎</button><button data-a="gun" class="tb sm">⟳</button><button data-a="fly" class="tb sm">🪶</button><button data-a="pause" class="tb sm">❚❚</button></div>';
   document.getElementById('hud').appendChild(ui);
   const base=ui.querySelector('#tbase'),knob=ui.querySelector('#tknob'),zone=ui.querySelector('#tzone');
   const R=56;let stickId=null,sx=0,sy=0;
   const active=()=>playing&&!paused&&!crafting&&player.alive;
   function stickSet(dx,dy){const l=Math.hypot(dx,dy),m=Math.min(l,R),k=l>0?m/l:0;dx*=k;dy*=k;knob.style.transform=`translate(${dx}px,${dy}px)`;
-    const n=m/R;if(n<0.18){TIN.f=TIN.s=0;TIN.sprint=false;}else{TIN.f=-dy/R;TIN.s=dx/R;TIN.sprint=n>0.95&&-dy/R>0.8;}}
+    const n=m/R;if(n<0.18){TIN.f=TIN.s=0;TIN.mag=1;TIN.sprint=false;}else{TIN.f=-dy/R;TIN.s=dx/R;TIN.mag=Math.max(0.25,Math.min(1,(n-0.18)/0.67));TIN.sprint=n>0.95&&-dy/R>0.8;}}
   function stickEnd(){stickId=null;TIN.f=TIN.s=0;TIN.sprint=false;knob.style.transform='';base.style.left=base.style.top='';base.classList.remove('on');}
   zone.addEventListener('pointerdown',e=>{e.preventDefault();if(stickId!==null||!active())return;stickId=e.pointerId;try{zone.setPointerCapture(e.pointerId);}catch(_){}
     const zr=zone.getBoundingClientRect();sx=e.clientX;sy=e.clientY;base.style.left=(sx-zr.left)+'px';base.style.top=(sy-zr.top)+'px';base.classList.add('on');stickSet(0,0);});
@@ -7364,7 +7368,7 @@ if(TOUCH){
   canvas.addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;e.preventDefault();if(active())mouseLook((e.clientX-lx)*LOOK_K,(e.clientY-ly)*LOOK_K);lx=e.clientX;ly=e.clientY;});
   ['pointerup','pointercancel','lostpointercapture'].forEach(t=>canvas.addEventListener(t,e=>{if(e.pointerId===lookId)lookId=null;}));
   // buttons: hold = mine/place/jump; tap = bag/map/gun/pause. Dragging on mine/place also looks, so you can aim while digging.
-  function pause(on){paused=on;document.getElementById('pause').style.display=on?'flex':'none';if(on){renderSettings();mouseL=mouseR=false;TIN.jump=false;stickEnd();}}
+  function pause(on){paused=on;document.getElementById('pause').style.display=on?'flex':'none';if(on){renderSettings();mouseL=mouseR=false;TIN.jump=TIN.down=false;stickEnd();}}
   const btnLook=new Map();
   ui.querySelectorAll('.tb').forEach(b=>{const a=b.dataset.a;
     b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(!playing)return;b.classList.add('on');try{b.setPointerCapture(e.pointerId);}catch(_){}
@@ -7374,23 +7378,24 @@ if(TOUCH){
       if(a==='mine'){mouseL=true;btnLook.set(e.pointerId,[e.clientX,e.clientY]);}
       else if(a==='place'){mouseR=true;placeCD=0;btnLook.set(e.pointerId,[e.clientX,e.clientY]);}
       else if(a==='jump')TIN.jump=true;
+      else if(a==='down')TIN.down=true;
+      else if(a==='fly'){if(gameMode.fly){player.flying=!player.flying;toast(player.flying?'Flying · JUMP up · DOWN down':'Flight off');}}
       else if(a==='map'){if(!chestOpen)toggleMap();}
       else if(a==='gun'){if(HOTBAR[slot]!=='gun')selectSlot(0);else if(guns.length>1){cycleGun(1);toast(GUNS[gun].name);}}});
     b.addEventListener('pointermove',e=>{const p=btnLook.get(e.pointerId);if(!p)return;if(active())mouseLook((e.clientX-p[0])*LOOK_K,(e.clientY-p[1])*LOOK_K);p[0]=e.clientX;p[1]=e.clientY;});
-    const up=e=>{b.classList.remove('on');btnLook.delete(e.pointerId);if(a==='mine')mouseL=false;else if(a==='place')mouseR=false;else if(a==='jump')TIN.jump=false;};
+    const up=e=>{b.classList.remove('on');btnLook.delete(e.pointerId);if(a==='mine')mouseL=false;else if(a==='place')mouseR=false;else if(a==='jump')TIN.jump=false;else if(a==='down')TIN.down=false;};
     b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);});
   // tap a hotbar slot to select it
   hotbarEl.addEventListener('pointerdown',e=>{const s=e.target.closest&&e.target.closest('.slot');if(!s||!playing||crafting)return;e.preventDefault();selectSlot([...hotbarEl.children].indexOf(s));});
-  // phone-height screens can push the panel's CLOSE button off-screen: a fixed corner ✕ while inventory/chest is open
-  const tclose=document.createElement('button');tclose.id='tclose';tclose.className='tb';tclose.textContent='✕';document.body.appendChild(tclose);
-  tclose.addEventListener('pointerdown',e=>{e.preventDefault();if(chestOpen)closeChest();else if(crafting)toggleCraft();tclose.style.display='none';});
-  setInterval(()=>{tclose.style.display=playing&&(crafting||chestOpen)?'flex':'none';},150);
+  // fly toggle + DOWN only where flight exists (Architect / fly modes)
+  const flyB=ui.querySelector('[data-a=fly]'),downB=ui.querySelector('[data-a=down]');
+  setInterval(()=>{const f=!!(gameMode&&gameMode.fly);flyB.style.display=f?'flex':'none';downB.style.display=f&&player.flying?'flex':'none';if(!(f&&player.flying))TIN.down=false;},200);
   // no pointer lock on iOS: Resume just unpauses
   document.getElementById('resume').addEventListener('click',()=>{if(playing)pause(false);});
   // no pinch / double-tap zoom, no long-press callouts
   ['gesturestart','gesturechange','dblclick'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
   document.addEventListener('touchmove',e=>{if(!e.target.closest||!e.target.closest('.overlay'))e.preventDefault();},{passive:false});
-  window.addEventListener('blur',()=>{mouseL=mouseR=false;TIN.jump=false;stickEnd();});
+  window.addEventListener('blur',()=>{mouseL=mouseR=false;TIN.jump=TIN.down=false;stickEnd();});
   GAME_TOUCH={TIN,pause,get stickId(){return stickId;}};
 }
 
@@ -7467,7 +7472,7 @@ function updateLightPool(dt){poolT-=dt;if(poolT<=0&&lightPool.length){poolT=0.25
     arr.sort((a,b)=>a[0]-b[0]);lightPool.forEach((l,i)=>{const a=arr[i];if(a){l.position.set(a[1]+0.5,a[2]+0.5,a[3]+0.5);l.userData.on=true;}else l.userData.on=false;});}
   lightPool.forEach((l,i)=>{l.intensity=l.userData.on?2.6*(0.92+0.08*Math.sin(clock*11+i*1.7)):0;});}
 function updatePlayer(dt){
-  const r=stepPlayer(dt,{forward:(held('fwd')?1:0)-(held('back')?1:0)+TIN.f,strafe:(held('right')?1:0)-(held('left')?1:0)+TIN.s,jump:held('jump')||TIN.jump,down:held('down'),sprint:held('sprint')||TIN.sprint});
+  const r=stepPlayer(dt,{forward:(held('fwd')?1:0)-(held('back')?1:0)+TIN.f,strafe:(held('right')?1:0)-(held('left')?1:0)+TIN.s,jump:held('jump')||TIN.jump,down:held('down')||TIN.down,sprint:held('sprint')||TIN.sprint,mag:(TIN.f||TIN.s)&&!(held('fwd')||held('back')||held('left')||held('right'))?TIN.mag:undefined});
   bob+=dt*(r.moving?(r.sprint?13:9):0);
   camera.position.set(player.pos.x,player.pos.y+EYE+(r.moving?Math.sin(bob*2)*0.04:0),player.pos.z);
   camera.rotation.set(player.pitch,player.yaw,0,'YXZ');
