@@ -1,5 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Blockfall — Survive the Night</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <style>
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',system-ui,sans-serif;color:#fff;user-select:none}
 #game canvas{display:block}
@@ -97,6 +98,33 @@ button.big:disabled{opacity:.5}
 .recipe{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:8px 12px;border-radius:8px;border:1px solid #fff2;background:#ffffff0d;color:#fff9;cursor:pointer;font-size:13px}
 .recipe b{font-size:15px}.recipe .cost{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;opacity:1}.recipe .cost i{font-style:normal;font-size:11px;padding:1px 7px;border-radius:9px;background:#ffffff14}.recipe .cost i.ok{color:#9fe39a;background:#4caf5022}.recipe .cost i.no{color:#ff9a8a;background:#e8553a22}.recipe .cost small{opacity:.7}.recipe em.tier{font-style:normal;font-size:12px;color:var(--tc);margin-left:6px}.recipe .delta{color:#ffd25a;opacity:1}.recipe .delta b{font-size:11px;color:#fff}.recipe .lock{color:#ff9a8a}.recipe.reforge{grid-column:1/-1}.recipe span{font-size:11px;opacity:.8}.recipe.can{color:#fff;border-color:#ffd25a88;background:#ffd25a1a}.recipe.can:hover{background:#ffd25a33}
 #magmaveil{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .15s;background:radial-gradient(ellipse at 50% 60%,rgba(255,170,40,.55),rgba(220,60,10,.92) 70%,rgba(90,10,0,.97));mix-blend-mode:normal;z-index:3}
+
+/* ---- touch controls (body.touch only) ---- */
+html{-webkit-text-size-adjust:100%;touch-action:manipulation}body{-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+#touchui{display:none}body.touch #touchui{display:block;position:absolute;inset:0;pointer-events:none}
+body.touch #touchui *{touch-action:none;-webkit-user-select:none}
+#tzone{position:absolute;left:0;bottom:0;width:38%;height:62%;pointer-events:auto}
+#tbase{position:absolute;left:calc(env(safe-area-inset-left) + 92px);top:calc(100% - env(safe-area-inset-bottom) - 84px);width:112px;height:112px;margin:-56px 0 0 -56px;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.28);opacity:.55;transition:opacity .15s}
+#tbase.on{opacity:1;transition:none}
+#tknob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(255,230,170,.45);border:2px solid rgba(255,240,200,.8);box-shadow:0 0 10px #0006}
+.tb{pointer-events:auto;border:2px solid rgba(255,255,255,.35);background:rgba(10,14,20,.45);color:#fff;border-radius:50%;font:20px/1 system-ui,sans-serif;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.tb small{font:bold 8px sans-serif;letter-spacing:1px;margin-top:2px;opacity:.8}.tb.on{background:rgba(255,210,90,.4);border-color:#ffd25a}
+#tbtns{position:absolute;right:calc(env(safe-area-inset-right) + 12px);bottom:calc(env(safe-area-inset-bottom) + 12px);width:150px;height:150px}
+#tbtns .tbig{position:absolute;width:62px;height:62px}
+#tbtns [data-a=mine]{right:0;top:0;width:70px;height:70px;font-size:24px}#tbtns [data-a=place]{left:0;top:38px}#tbtns [data-a=jump]{right:4px;bottom:0}
+#tmenu{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 196px);display:flex;gap:8px}
+#tmenu .sm{width:40px;height:40px;font-size:16px;border-radius:10px}
+body.touch #hotbar{bottom:calc(env(safe-area-inset-bottom) + 6px);pointer-events:auto;padding:3px;gap:2px;touch-action:none}
+body.touch .slot{width:38px;height:38px}body.touch .slot canvas{width:26px!important;height:26px!important}body.touch .slot i{display:none}
+body.touch #hp{bottom:calc(env(safe-area-inset-bottom) + 54px);width:220px;height:10px}body.touch #hptext{font-size:8px;line-height:10px}
+body.touch #itemname{bottom:calc(env(safe-area-inset-bottom) + 68px);font-size:13px}
+body.touch #start h1{font-size:40px;letter-spacing:4px}body.touch #start h2{font-size:13px;margin-bottom:6px}
+body.touch #bossbar{top:calc(env(safe-area-inset-top) + 56px)}
+body.touch #info{top:calc(env(safe-area-inset-top) + 6px);left:calc(env(safe-area-inset-left) + 6px);font-size:11px;padding:5px 8px;line-height:1.4}
+body.touch #dist{right:calc(env(safe-area-inset-right) + 8px);top:calc(env(safe-area-inset-top) + 22px)}
+body.touch #minimap{bottom:auto;top:calc(env(safe-area-inset-top) + 80px);right:calc(env(safe-area-inset-right) + 10px);width:84px;height:84px}
+#tclose{display:none;position:fixed;z-index:50;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 8px);width:44px;height:44px;font-size:20px;border-radius:12px;background:rgba(60,20,20,.75)}
+body.touch .overlay{-webkit-overflow-scrolling:touch;touch-action:pan-y;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 </style></head><body>
 <div id="game"></div>
 <div id="hud"><div id="modebadge"></div><div id="campmark"><i>▲</i><b>CAMP</b><span></span></div><div id="recallbar"><span>Returning to camp…</span><b><i></i></b></div><div id="savedot">✓ Saved</div><div id="scope"><i></i></div><div id="cross"></div><div id="hitm">+</div><div id="breakwrap"><div id="breakbar"></div></div>
@@ -7274,7 +7302,7 @@ function perfWatch(dt){fpsSampleT+=dt;if(fpsSampleT<1)return;fpsSampleT=0;fpsHis
 // ===== client/input.js =====
 // ---------------- Input ----------------
 const canvas=renderer.domElement;
-function lock(){if(TEST)return;try{const p=canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
+function lock(){if(TEST||TOUCH)return;try{const p=canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
 document.addEventListener('pointerlockchange',()=>{const L=document.pointerLockElement===canvas;paused=playing&&!L&&!crafting&&player.alive;document.getElementById('pause').style.display=paused?'flex':'none';if(paused)renderSettings();if(!L){mouseL=mouseR=false;}});
 document.getElementById('resume').addEventListener('click',lock);
 canvas.addEventListener('click',()=>{if(playing&&!document.pointerLockElement&&!crafting)lock();});
@@ -7305,6 +7333,66 @@ window.addEventListener('keydown',e=>{if(!rebinding)return;e.preventDefault();e.
 document.getElementById('closecraft').onclick=()=>{if(crafting)toggleCraft();};
 document.getElementById('respawn').onclick=respawn;
 
+
+// ===== client/touch.js =====
+// ---------------- Touch controls (phones/tablets) ----------------
+// Auto-on for coarse pointers / touch screens (or ?touch). Desktop path is untouched: nothing here runs unless TOUCH.
+const TOUCH=params.has('touch')||(!params.has('notouch')&&((window.matchMedia&&matchMedia('(pointer: coarse)').matches)||('ontouchstart' in window)));
+const TIN={f:0,s:0,jump:false,sprint:false}; // read by updatePlayer
+let GAME_TOUCH=null;
+if(TOUCH){
+  document.body.classList.add('touch');
+  const ui=document.createElement('div');ui.id='touchui';
+  ui.innerHTML='<div id="tzone"><div id="tbase"><div id="tknob"></div></div></div>'+
+    '<div id="tbtns"><button data-a="mine" class="tb tbig">⛏<small>MINE</small></button><button data-a="place" class="tb tbig">▣<small>PLACE</small></button><button data-a="jump" class="tb tbig">⤒<small>JUMP</small></button></div>'+
+    '<div id="tmenu"><button data-a="bag" class="tb sm">🎒</button><button data-a="map" class="tb sm">◎</button><button data-a="gun" class="tb sm">⟳</button><button data-a="pause" class="tb sm">❚❚</button></div>';
+  document.getElementById('hud').appendChild(ui);
+  const base=ui.querySelector('#tbase'),knob=ui.querySelector('#tknob'),zone=ui.querySelector('#tzone');
+  const R=56;let stickId=null,sx=0,sy=0;
+  const active=()=>playing&&!paused&&!crafting&&player.alive;
+  function stickSet(dx,dy){const l=Math.hypot(dx,dy),m=Math.min(l,R),k=l>0?m/l:0;dx*=k;dy*=k;knob.style.transform=`translate(${dx}px,${dy}px)`;
+    const n=m/R;if(n<0.18){TIN.f=TIN.s=0;TIN.sprint=false;}else{TIN.f=-dy/R;TIN.s=dx/R;TIN.sprint=n>0.95&&-dy/R>0.8;}}
+  function stickEnd(){stickId=null;TIN.f=TIN.s=0;TIN.sprint=false;knob.style.transform='';base.style.left=base.style.top='';base.classList.remove('on');}
+  zone.addEventListener('pointerdown',e=>{e.preventDefault();if(stickId!==null||!active())return;stickId=e.pointerId;try{zone.setPointerCapture(e.pointerId);}catch(_){}
+    const zr=zone.getBoundingClientRect();sx=e.clientX;sy=e.clientY;base.style.left=(sx-zr.left)+'px';base.style.top=(sy-zr.top)+'px';base.classList.add('on');stickSet(0,0);});
+  zone.addEventListener('pointermove',e=>{if(e.pointerId!==stickId)return;e.preventDefault();stickSet(e.clientX-sx,e.clientY-sy);});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(t=>zone.addEventListener(t,e=>{if(e.pointerId===stickId)stickEnd();}));
+  // look: drag anywhere on the world view (canvas) that isn't a control
+  let lookId=null,lx=0,ly=0;const LOOK_K=2.6;
+  canvas.style.touchAction='none';
+  canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'||lookId!==null||!active())return;e.preventDefault();lookId=e.pointerId;lx=e.clientX;ly=e.clientY;try{canvas.setPointerCapture(e.pointerId);}catch(_){}});
+  canvas.addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;e.preventDefault();if(active())mouseLook((e.clientX-lx)*LOOK_K,(e.clientY-ly)*LOOK_K);lx=e.clientX;ly=e.clientY;});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(t=>canvas.addEventListener(t,e=>{if(e.pointerId===lookId)lookId=null;}));
+  // buttons: hold = mine/place/jump; tap = bag/map/gun/pause. Dragging on mine/place also looks, so you can aim while digging.
+  function pause(on){paused=on;document.getElementById('pause').style.display=on?'flex':'none';if(on){renderSettings();mouseL=mouseR=false;TIN.jump=false;stickEnd();}}
+  const btnLook=new Map();
+  ui.querySelectorAll('.tb').forEach(b=>{const a=b.dataset.a;
+    b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(!playing)return;b.classList.add('on');try{b.setPointerCapture(e.pointerId);}catch(_){}
+      if(a==='pause'){if(!crafting&&player.alive)pause(true);return;}
+      if(a==='bag'){if(chestOpen)closeChest();else if(player.alive&&!paused)toggleCraft();return;}
+      if(!active())return;
+      if(a==='mine'){mouseL=true;btnLook.set(e.pointerId,[e.clientX,e.clientY]);}
+      else if(a==='place'){mouseR=true;placeCD=0;btnLook.set(e.pointerId,[e.clientX,e.clientY]);}
+      else if(a==='jump')TIN.jump=true;
+      else if(a==='map'){if(!chestOpen)toggleMap();}
+      else if(a==='gun'){if(HOTBAR[slot]!=='gun')selectSlot(0);else if(guns.length>1){cycleGun(1);toast(GUNS[gun].name);}}});
+    b.addEventListener('pointermove',e=>{const p=btnLook.get(e.pointerId);if(!p)return;if(active())mouseLook((e.clientX-p[0])*LOOK_K,(e.clientY-p[1])*LOOK_K);p[0]=e.clientX;p[1]=e.clientY;});
+    const up=e=>{b.classList.remove('on');btnLook.delete(e.pointerId);if(a==='mine')mouseL=false;else if(a==='place')mouseR=false;else if(a==='jump')TIN.jump=false;};
+    b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);});
+  // tap a hotbar slot to select it
+  hotbarEl.addEventListener('pointerdown',e=>{const s=e.target.closest&&e.target.closest('.slot');if(!s||!playing||crafting)return;e.preventDefault();selectSlot([...hotbarEl.children].indexOf(s));});
+  // phone-height screens can push the panel's CLOSE button off-screen: a fixed corner ✕ while inventory/chest is open
+  const tclose=document.createElement('button');tclose.id='tclose';tclose.className='tb';tclose.textContent='✕';document.body.appendChild(tclose);
+  tclose.addEventListener('pointerdown',e=>{e.preventDefault();if(chestOpen)closeChest();else if(crafting)toggleCraft();tclose.style.display='none';});
+  setInterval(()=>{tclose.style.display=playing&&(crafting||chestOpen)?'flex':'none';},150);
+  // no pointer lock on iOS: Resume just unpauses
+  document.getElementById('resume').addEventListener('click',()=>{if(playing)pause(false);});
+  // no pinch / double-tap zoom, no long-press callouts
+  ['gesturestart','gesturechange','dblclick'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+  document.addEventListener('touchmove',e=>{if(!e.target.closest||!e.target.closest('.overlay'))e.preventDefault();},{passive:false});
+  window.addEventListener('blur',()=>{mouseL=mouseR=false;TIN.jump=false;stickEnd();});
+  GAME_TOUCH={TIN,pause,get stickId(){return stickId;}};
+}
 
 // ===== client/persist.js =====
 // ===== Persistence host: stores core snapshots in localStorage (a Steam port swaps this for a save file) =====
@@ -7379,7 +7467,7 @@ function updateLightPool(dt){poolT-=dt;if(poolT<=0&&lightPool.length){poolT=0.25
     arr.sort((a,b)=>a[0]-b[0]);lightPool.forEach((l,i)=>{const a=arr[i];if(a){l.position.set(a[1]+0.5,a[2]+0.5,a[3]+0.5);l.userData.on=true;}else l.userData.on=false;});}
   lightPool.forEach((l,i)=>{l.intensity=l.userData.on?2.6*(0.92+0.08*Math.sin(clock*11+i*1.7)):0;});}
 function updatePlayer(dt){
-  const r=stepPlayer(dt,{forward:(held('fwd')?1:0)-(held('back')?1:0),strafe:(held('right')?1:0)-(held('left')?1:0),jump:held('jump'),down:held('down'),sprint:held('sprint')});
+  const r=stepPlayer(dt,{forward:(held('fwd')?1:0)-(held('back')?1:0)+TIN.f,strafe:(held('right')?1:0)-(held('left')?1:0)+TIN.s,jump:held('jump')||TIN.jump,down:held('down'),sprint:held('sprint')||TIN.sprint});
   bob+=dt*(r.moving?(r.sprint?13:9):0);
   camera.position.set(player.pos.x,player.pos.y+EYE+(r.moving?Math.sin(bob*2)*0.04:0),player.pos.z);
   camera.rotation.set(player.pitch,player.yaw,0,'YXZ');
@@ -7437,7 +7525,7 @@ renderModeCards();document.getElementById('play').onclick=startGame;
 document.getElementById('loading').textContent=`World seed ${SEED} · textures ${TS}px generated in ${Math.round(texGenMs)} ms`;document.getElementById('play').disabled=false;
 requestAnimationFrame(frame);
 // debug/test hooks
-window.GAME={fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
+window.GAME={TOUCH,touch:()=>GAME_TOUCH,fireGrapple:()=>fireGrapple(eye(),lookDir()),releaseGrapple,grappleSpec,get grapple(){return player.grapple;},mouseLook,keymap:()=>Object.assign({},KEYMAP),bindKey,resetKeymap,held,isAct,a11y:()=>Object.assign({},A11Y),setA11y,startRebind:a=>{rebinding=a;renderSettings();},get rebinding(){return rebinding;},get shakeT(){return shakeT;},setMusVolume,musicCalm:()=>{MUS.stingT=0;MUS.lv.drums=0;MUS.tgt.drums=0;},musicTick:(dt,calm)=>{updateMusic(dt,calm);return {prof:MUS.prof,xf:MUS.xf,calm:MUS.calm};},victoryPhrase,music:()=>({zone:MUS.zone,lv:Object.assign({},MUS.lv),notes:MUS.notes,stings:MUS.stings,lastSting:MUS.lastSting,stingT:MUS.stingT,threat:MUS.threat,bar:MUS.bar,ac:AC&&AC.state,prof:MUS.prof,xf:MUS.xf,calm:MUS.calm,xfades:MUS.xfades,victories:MUS.victories,lastVictory:MUS.lastVictory}),audioResume:()=>{const a=audio();if(a&&a.resume)a.resume();return a&&a.state;},spawnWispPack,spawnGloamheart,gloamAlive,liveWisps,lures:()=>[...lures.values()],litAt:(x,y,z)=>lanterns.has(x+','+y+','+z),trophyFx:()=>trophyFxN,packTimer:v=>{if(v!==undefined)packTimer=v;return packTimer;},on,DIFFICULTY,setDifficulty,get difficultyId(){return difficultyId;},get pickedDiff(){return pickedDiff;},pickDiff:id=>{pickedDiff=id;renderDiffs();},get camp(){return camp;},placeWaystone,startRecall,cancelRecall,get recall(){return recall;},campPoint:()=>campPoint().clone(),campDistance,campBearing,get lastLoss(){return lastLoss;},get lastGrave(){return lastGrave;},respawn,serializeGame,writeSave,readSave,clearSave,get savedRun(){return savedRun;},SEED,get editCount(){let n=0;for(const m of editLog.values())n+=m.size;return n;},get day(){return day;},get kills(){return kills;},get bestDist(){return bestDist;},placeChest,chestFace,consumeBlock,get runBest(){return runBest;},get goalIdx(){return goalIdx;},MODES,MODE_ORDER,setMode,get gameModeId(){return gameModeId;},get gameMode(){return gameMode;},nextGoal,get pickedMode(){return pickedMode;},pickMode:id=>{pickedMode=id;renderModeCards();},BLOCKS,B,updateHUDNow:updateHUD,tp:(x,z)=>{const y=topSolid(Math.floor(x),Math.floor(z));player.pos.set(x+0.5,(y>0?y:heightAt(x,z))+1.01,z+0.5);player.vel.set(0,0,0);},get bestDist(){return bestDist;},ringAt,DANGER_RINGS,THREE:T,player,zombies,clearZombies,camera,scene,renderer,spawnZombie,spawnBoss,canSee,HOTBAR,placeDoor,toggleDoor,changeBlocks,doors,doorAt,chestAt,chestPut,chestTake,openChest,closeChest,get chestOpen(){return chestOpen;},interactBlock,blockAt,CINDER,inMagma:()=>inMagma(player),PICKS,RECIPES,craftRecipe:craft,harvest,canBreak,enemyEye,ENEMY_KINDS,get lastBossT(){return lastBoss;},setTime:t=>{worldTime=t;wasNight=nightFactor()>0.5;},get fps(){return fps;},chunks,shoot,res,inv,setSlot:i=>{if(i>=HOTBAR_SIZE){moveSlot(i,HOTBAR_SIZE-1);i=HOTBAR_SIZE-1;}selectSlot(i);},HOTBAR_SIZE,PACK_SIZE,moveSlot,quickMove,sortBackpack,resetLayout,ensureLayout,deserializeGame,get crafting(){return crafting;},get craftTab(){return craftTab;},get invHeld(){return invHeld;},get slot(){return slot;},atlas:()=>({cols:ATC,rows:ATR,used:PAINT.length,w:AW,h:AH}),topSolid,heightAt,getBlock,setBlock,setBlocksRaw,raycast,blockAt,get worldTime(){return worldTime;},
   look:(yaw,pitch)=>{player.yaw=yaw;player.pitch=pitch;},setTimeScale:s=>timeScale=s,setMouse:(l,r)=>{mouseL=l;mouseR=r;},craft:toggleCraft,get pickTier(){return pickTier;},set pickTier(v){pickTier=v;},hurt:hurtPlayer,
   setPreset:n=>applyPreset(n,true),nearestLandmark,nearestStarfall,starfallInCell,removeZombie,STARFALL,updateStarfall,landmarkSealed,foundLandmarks,VOID_LOOK,get voidF(){return voidF;},toggleMap,MAPMEM,mapMemColumn,get bigMapR(){return MM.bigR;},set bigMapR(v){MM.bigR=v;},voidFx:()=>VFX,ambience:()=>({zone:AMB.zone,wind:AMB.w,rumble:AMB.r,bed:!!AMB.bed}),get volume(){return sfxVolume;},setVolume,setFxVolume,setAmbVolume,master:()=>MASTER&&MASTER.gain.value,showPause:on=>{paused=!!on;document.getElementById('pause').style.display=on?'flex':'none';if(on)renderSettings();},options:()=>({vol:sfxVolume,fx:fxVolume,amb:ambVolume,sens:mouseSens,fov:baseFov,camFov:camera.fov,busFx:BUS_FX&&BUS_FX.gain.value,busAmb:BUS_AMB&&BUS_AMB.gain.value,mus:musVolume,busMus:BUS_MUS&&BUS_MUS.gain.value}),spawnWisp:(x,y,z)=>spawnZombie(x,y,z,'shardwisp'),trySpawnZombie,ambienceZone,get mapOpen(){return mapOpen;},landmarkState,closeChest,LANDMARK,updateLandmarks,serializeGame,get preset(){return gfx.preset;},get texGenMs(){return texGenMs;},setRD,get gun(){return gun;},get gunTiers(){return gunTiers;},setGunTier:(i,t)=>{gunTiers[i]=t;fire('gunChanged');},gunStat,gunName,gunAmmo,ammoKey,canCraft,recipeLocked,GUN_TIERS,BLASTPROOF_HARD,damageZombie,STORMHULK_CHANCE,get guns(){return guns;},unlockGun,cycleGun,GUNS,throwGrenade:()=>{const r=throwGrenade(eye(),lookDir());updateHotbar();return r;},explode,projectiles,fuses,igniteCharge,lookDir:()=>lookDir().clone(),eye:()=>eye().clone(),get aim(){return aimAmt;},
   pendingChunks:()=>{let n=0;for(const c of chunks.values()){const dx=c.cx-Math.floor(player.pos.x/CS),dz=c.cz-Math.floor(player.pos.z/CS);if(c.dirty&&dx*dx+dz*dz<=(RD+0.5)*(RD+0.5))n++;}return n;}};
