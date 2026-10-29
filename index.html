@@ -4714,7 +4714,7 @@ const B={AIR:0,GRASS:1,DIRT:2,STONE:3,COBBLE:4,LOG:5,LEAVES:6,SAND:7,COAL:8,IRON
   // B1: torches (floor + 4 wall facings), ladders (4 facings), fence, fence gate (closed/open x 2 axes), berry bush, furnace, bedroll
   TORCH:58,TORCH_WALL:59,LADDER:63,FENCE:67,GATE:68,GATE_Z:69,GATE_OPEN:70,GATE_Z_OPEN:71,BUSH:72,FURNACE:73,BEDROLL:74,
   // B2: hay bale (soft landing), sign (board across x / across z)
-  HAY:75,SIGN:76,SIGN_Z:77};
+  HAY:75,SIGN:76,SIGN_Z:77,IRON_DOOR:78,BEACON:79};
 const BLOCK_TABLE=[
  // id          name            tiles                                   hard     tier drop        solid opaque light
  [B.AIR,       'Air',          ['dirt','dirt','dirt'],                   0,       0,  0,          0,    0,     0],
@@ -4792,6 +4792,9 @@ const BLOCK_TABLE=[
  [B.BEDROLL,   'Bedroll',      ['bedroll','bedroll','planks'],           0.3,     0,  B.BEDROLL,  1,    0,     0],
  // B2: hay bale breaks any fall; signs are walk-through boards that show a short text (client sign_view)
  [B.HAY,       'Hay Bale',     ['hayTop','haySide','hayTop'],            0.4,     0,  B.HAY,      1,    1,     0],
+ // B3: iron door is an inventory item only (placing it sets a door with iron:true); camp beacon marks a waypoint on the minimap + compass
+ [B.IRON_DOOR, 'Iron Door',    ['ironDoor','ironDoor','ironDoor'],       2.0,     0,  B.IRON_DOOR,1,    0,     0],
+ [B.BEACON,    'Camp Beacon',  ['beaconTop','beaconSide','cobble'],      1.5,     0,  B.BEACON,   1,    1,     0.9],
  [B.SIGN,      'Sign',         ['planks','planks','planks'],             0.5,     0,  B.SIGN,     0,    0,     0],
  [B.SIGN_Z,    'Sign',         ['planks','planks','planks'],             0.5,     0,  B.SIGN,     0,    0,     0],
 ];
@@ -4886,7 +4889,7 @@ const DEFAULT_LAYOUT=['gun','grenade',B.DIRT,B.COBBLE,B.PLANKS,B.LOG,B.GLASS,B.L
   B.SAND,B.BRICK,B.DOOR,B.CHEST,B.WAYSTONE,B.VOLTSTEEL,B.LURE,B.TROPHY,B.BANNER,B.VOIDGLASS,B.RUNEBRICK,B.SANDTILE,B.SHELF,B.STARROCK,B.PLANK_SLAB,B.PLANK_STAIR,B.COBBLE_SLAB,B.COBBLE_STAIR,B.RUNE_SLAB,B.RUNE_STAIR,B.GRAVEL,B.TORCH,B.LADDER,B.FENCE,B.GATE,B.FURNACE,B.BEDROLL,B.HAY,B.SIGN,'coal','iron','gold','diamond','ember','voltite','cell','flint','berries','ration','rawmeat','cookedmeat','fibre'];
 // pre-inventory saves stored a slot index into this fixed 14-slot bar
 const LEGACY_HOTBAR=['gun','grenade',B.DIRT,B.COBBLE,B.PLANKS,B.LOG,B.SAND,B.GLASS,B.BRICK,B.LANTERN,B.CHARGE,B.DOOR,B.CHEST,B.WAYSTONE];
-const START_INV={inv:{[B.DIRT]:0,[B.COBBLE]:0,[B.PLANKS]:0,[B.LOG]:0,[B.SAND]:0,[B.GLASS]:0,[B.BRICK]:0,[B.LANTERN]:0,[B.CHARGE]:0,[B.DOOR]:0,[B.CHEST]:0,[B.WAYSTONE]:0,[B.VOLTSTEEL]:0,[B.LURE]:0,[B.TROPHY]:0,[B.BANNER]:0,[B.VOIDGLASS]:0,[B.RUNEBRICK]:0,[B.SANDTILE]:0,[B.SHELF]:0,[B.STARROCK]:0,[B.PLANK_SLAB]:0,[B.PLANK_STAIR]:0,[B.COBBLE_SLAB]:0,[B.COBBLE_STAIR]:0,[B.RUNE_SLAB]:0,[B.RUNE_STAIR]:0,[B.GRAVEL]:0,[B.TORCH]:0,[B.LADDER]:0,[B.FENCE]:0,[B.GATE]:0,[B.FURNACE]:0,[B.BEDROLL]:0,[B.HAY]:0,[B.SIGN]:0},res:{coal:0,iron:0,gold:0,diamond:0,ember:0,voltite:0,ammo:60,cell:0,grenade:0,flint:0}};
+const START_INV={inv:{[B.DIRT]:0,[B.COBBLE]:0,[B.PLANKS]:0,[B.LOG]:0,[B.SAND]:0,[B.GLASS]:0,[B.BRICK]:0,[B.LANTERN]:0,[B.CHARGE]:0,[B.DOOR]:0,[B.CHEST]:0,[B.WAYSTONE]:0,[B.VOLTSTEEL]:0,[B.LURE]:0,[B.TROPHY]:0,[B.BANNER]:0,[B.VOIDGLASS]:0,[B.RUNEBRICK]:0,[B.SANDTILE]:0,[B.SHELF]:0,[B.STARROCK]:0,[B.PLANK_SLAB]:0,[B.PLANK_STAIR]:0,[B.COBBLE_SLAB]:0,[B.COBBLE_STAIR]:0,[B.RUNE_SLAB]:0,[B.RUNE_STAIR]:0,[B.GRAVEL]:0,[B.TORCH]:0,[B.LADDER]:0,[B.FENCE]:0,[B.GATE]:0,[B.FURNACE]:0,[B.BEDROLL]:0,[B.HAY]:0,[B.SIGN]:0,[B.IRON_DOOR]:0,[B.BEACON]:0},res:{coal:0,iron:0,gold:0,diamond:0,ember:0,voltite:0,ammo:60,cell:0,grenade:0,flint:0}};
 // need/give keys: numeric = block id (inventory), string = resource; special gives: pickTier (min tier) / gun (index into GUNS, unlocks it) / gunTier (reforges the equipped gun to that GUN_TIERS index).
 // cat = crafting tab id (CRAFT_TABS)
 const CRAFT_TABS=[{id:'all',name:'All'},{id:'build',name:'Building'},{id:'tools',name:'Tools'},{id:'weapons',name:'Weapons'},{id:'supplies',name:'Ammo & Explosives'}];
@@ -4919,6 +4922,10 @@ const RECIPES=[
   {name:'Bedroll',cat:'build',      need:{[B.PLANKS]:3,[B.LOG]:1}, give:{[B.BEDROLL]:1}},
   {name:'Cooked Meat x2',cat:'supplies',need:{rawmeat:2,coal:1},   give:{cookedmeat:2},station:'furnace'},
   {name:'Hay Bale',cat:'build',need:{fibre:4},give:{[B.HAY]:1}},
+  {name:'Iron Door',cat:'build',need:{iron:4},give:{[B.IRON_DOOR]:1},station:'furnace'},
+  {name:'Camp Beacon',cat:'build',need:{[B.COBBLE]:4,[B.GLASS]:1,coal:2},give:{[B.BEACON]:1}},
+  {name:'Ember Helm',cat:'tools',need:{ember:3,iron:2},give:{armor:'helm'},station:'furnace'},
+  {name:'Ember Plate',cat:'tools',need:{ember:5,iron:3},give:{armor:'plate'},station:'furnace'},
   {name:'Sign',cat:'build',need:{[B.PLANKS]:2},give:{[B.SIGN]:1}},
   {name:'Trail Ration',cat:'supplies',need:{berries:3,coal:1},     give:{ration:1},station:'furnace'},
   {name:'30 Ammo',cat:'supplies',      need:{iron:1,coal:1},          give:{ammo:30}},
@@ -5019,7 +5026,7 @@ const DANGER_RINGS=[
 ];
 
 // Doors & chests (core/structures.js). breachTime = seconds of zombie clawing to smash a closed door (scaled by danger ring hp mul).
-const STRUCT={door:{breachTime:5,clawGap:0.8,hitEvery:0.7,bonewalkerMul:1.6},chest:{slots:24,stack:64}};
+const STRUCT={door:{breachTime:18,clawGap:0.8,hitEvery:0.7,bonewalkerMul:1.6},chest:{slots:24,stack:64}};
 // Game modes. Plain flags read by core systems; the start screen lists them in this order.
 //   enemies: spawn zombies/bosses · invulnerable: no damage · infinite: placing never consumes blocks
 //   fly: V toggles flight (Space up / X down) · instantBreak: any finite-hardness block breaks at once · fixedTime: lock time of day
@@ -5032,11 +5039,15 @@ const MODES={
 // Difficulty (modes with enemies). dmg/spawn scale enemy damage and horde size; loss = share of carried blocks and
 // materials (not tools, guns or ammo) dropped into a grave cache where you fell; permadeath erases the world and its save.
 const DIFFICULTY={
-  calm:    {name:'Calm',    tag:'Fewer, weaker attackers. Death costs nothing.',dmg:0.5,spawn:0.6,loss:0},
-  standard:{name:'Standard',tag:'The intended challenge. Death drops half your materials in a grave cache where you fell.',dmg:1,spawn:1,loss:0.5},
-  brutal:  {name:'Brutal',  tag:'Harder hits, bigger hordes. Death drops everything you carry in a grave cache.',dmg:1.5,spawn:1.4,loss:1},
-  ironclad:{name:'Ironclad',tag:'Brutal odds, and death is final: the world and its save are erased.',dmg:1.5,spawn:1.4,loss:1,permadeath:true},
+  calm:    {name:'Calm',    tag:'Easy: fewer, weaker attackers, slower hunger. Death costs nothing.',dmg:0.5,spawn:0.6,loss:0,hunger:0.7,pack:0.75,doorBreak:false},
+  standard:{name:'Standard',tag:'Normal: the intended challenge. Death drops half your materials in a grave cache where you fell.',dmg:1,spawn:1,loss:0.5,hunger:1,pack:1,doorBreak:false},
+  brutal:  {name:'Brutal',  tag:'Hard: harder hits, bigger night packs, faster hunger; zombies claw through wooden doors at night. Death drops everything you carry in a grave cache.',dmg:1.5,spawn:1.4,loss:1,hunger:1.35,pack:1.4,doorBreak:true},
+  ironclad:{name:'Ironclad',tag:'Hard+: Brutal odds and door-breaking, and death is final: the world and its save are erased.',dmg:1.5,spawn:1.4,loss:1,permadeath:true,hunger:1.35,pack:1.4,doorBreak:true},
 };
+// B3: armour pieces (Ember tier) cut enemy damage; air lasts AIR.max seconds under water, then drowning ticks
+const ARMOR={helm:{name:'Ember Helm',cut:0.15},plate:{name:'Ember Plate',cut:0.25}};
+const AIR={max:12,regen:4,dmg:6,every:1};
+const BEACON_MAX=8;
 const DIFF_ORDER=['calm','standard','brutal','ironclad'];
 const DEATH_DROP_RES=['coal','iron','gold','diamond','ember','voltite','grenade'];
 // Waystone camp marker: recall channel time (s), cooldown (s), how far you may drift while channeling (m)
@@ -5218,8 +5229,9 @@ function nightFactor(){const e=Math.sin(worldTime*Math.PI*2);return 1-smooth(-0.
 function advanceTime(dt){clock+=dt;worldTime=(worldTime+dt*timeScale/DAYLEN)%1;}
 // ---- rules ----
 function itemCount(k){return isNaN(+k)?res[k]:inv[+k];}
-function addItem(k,n){if(isNaN(+k))res[k]=(res[k]||0)+n;else inv[+k]=(inv[+k]||0)+n;}
+function addItem(k,n){if(isNaN(+k))res[k]=(res[k]||0)+n;else{inv[+k]=(inv[+k]||0)+n;if(n>0&&LAYOUT_OPTIONAL.has(+k)&&HOTBAR.indexOf(+k)<0)ensureLayout();}}
 function harvest(blockId){ // returns {key,n} of what the player receives
+  if(blockId===B.DOOR&&skipDoorDrop){skipDoorDrop=0;return null;}
   if(gameMode.infinite)return null;
   if(blockId===B.BUSH){const n=BUSH_BERRIES[0];res.berries=(res.berries||0)+n;res.fibre=(res.fibre||0)+2;return {key:'berries',n};}
   if(blockId===B.GRAVEL&&Math.random()<GRAVEL_FLINT){res.flint=(res.flint||0)+1;return {key:'flint',n:1};}
@@ -5237,7 +5249,7 @@ function toolName(k){return TOOL_TIERS[Math.max(0,toolTier(k))]+' '+TOOLS[k].nam
 const KIND_NAMES={bonewalker:'a Bonewalker',ashwing:'an Ashwing',shardwisp:'a Shardwisp',stormhulk:'a Stormhulk',gloamheart:'the Gloamheart',skitter:'a Skitterling',mossback:'a Mossback'};
 function causeFrom(from,enemy){if(!enemy||!from)return 'injuries';let best=null,bd=1e9;for(const z of zombies){if(z.dead)continue;const d=Math.hypot(z.pos.x-from.x,z.pos.y-from.y,z.pos.z-from.z);if(d<bd){bd=d;best=z;}}
   return best&&KIND_NAMES[best.kind]||'a zombie';}
-function hurtPlayer(d,from,enemy,cause){if(!player.alive||gameMode.invulnerable)return;if(enemy)d=enemyDmg(d);lastHurtBy=cause||causeFrom(from,enemy);player.hp-=d;player.lastHurt=clock;
+function hurtPlayer(d,from,enemy,cause){if(!player.alive||gameMode.invulnerable)return;if(enemy){d=enemyDmg(d);const ac=armorCut();if(ac>0)d=Math.max(1,Math.round(d*(1-ac)));}lastHurtBy=cause||causeFrom(from,enemy);player.hp-=d;player.lastHurt=clock;
   if(from){const dx=player.pos.x-from.x,dz=player.pos.z-from.z,l=Math.hypot(dx,dz)||1;player.vel.x+=dx/l*6;player.vel.z+=dz/l*6;player.vel.y=Math.max(player.vel.y,4);}
   fire('playerHurt',d);if(player.hp<=0){player.hp=0;player.alive=false;fire('playerDied');}}
 function respawnPlayer(){player.flying=false;if(gameMode.goals)resetRun();player.alive=true;player.hp=PS.maxHp;player.hunger=Math.max(player.hunger,HUNGER.max*0.75);player.healPool=0;fallingBlocks.length=0;const cp=respawnPoint();ensureChunksAround(cp.x,cp.z);recall.t=-1;player.pos.copy(cp);player.vel.set(0,0,0);res.ammo=Math.max(res.ammo,30);}
@@ -5300,7 +5312,7 @@ function meleeTarget(o,d,reach,maxT){let best=null,bt=Math.min(reach,maxT==null?
   return best;}
 function meleeAttack(o,d,item,maxT){const z=meleeTarget(o,d,TOOLS.meleeReach,maxT);if(!z)return null;const dmg=meleeDamage(item);damageZombie(z,dmg,{x:d.x,y:0,z:d.z},false,'melee');fire('meleeHit',z,dmg,item);return {z,dmg};}
 function damageZombie(z,dmg,dir,head,src){const K=ENEMY_KINDS[z.kind];const arm=K&&K.armor&&src!=='energy'&&src!=='blast'?K.armor:1;if(arm<1)fire('armorHit',z);
-  z.hp-=dmg*arm*(head?ZS.headshotMul:1);z.hurt=0.15;if(z.passive)z.fleeT=FAUNA.fleeT;if(dir&&!z.flying){const kb=z.kind==='stormhulk'?0.8:4;z.vel.x+=dir.x*kb;z.vel.z+=dir.z*kb;}
+  const dd=dmg*arm*(head?ZS.headshotMul:1);z.hp-=dd;fire('zombieDamaged',z,dd,!!head);z.hurt=0.15;if(z.passive)z.fleeT=FAUNA.fleeT;if(dir&&!z.flying){const kb=z.kind==='stormhulk'?0.8:4;z.vel.x+=dir.x*kb;z.vel.z+=dir.z*kb;}
   if(z.hp<=0&&!z.dead){z.dead=0.001;if(!z.passive)kills++;let ammo=0;if(!z.passive&&Math.random()<ZS.ammoDropChance){ammo=Math.round((ZS.ammoDropMin+Math.floor(Math.random()*ZS.ammoDropVar))*(1+z.ring*0.5));}if(z.boss){const W=ENEMY_KINDS.ashwing.reward;res.ammo+=W.ammo;ammo+=W.ammo;res.grenade=(res.grenade||0)+W.grenade;for(const k in W.res)addItem(k,W.res[k]);}
     else if(z.kind==='bonewalker')ammo=Math.round(ammo*ENEMY_KINDS.bonewalker.ammoDrop);
     else if(ENEMY_KINDS[z.kind]&&ENEMY_KINDS[z.kind].drop){const D=ENEMY_KINDS[z.kind].drop,lt={};for(const k in D){const n=D[k][0]+Math.floor(Math.random()*(D[k][1]-D[k][0]+1));addItem(k,n);lt[k]=n;}z.loot=lt;}
@@ -5308,7 +5320,7 @@ function damageZombie(z,dmg,dir,head,src){const K=ENEMY_KINDS[z.kind];const arm=
     fire('zombieKilled',z,ammo);}}
 function updateZombies(dt){
   if(!gameMode.enemies){if(zombies.length)clearZombies();return;}
-  const night=nightFactor()>0.5;const R=ringAt(player.pos.x,player.pos.z);const maxZ=Math.round((night?ZS.maxNightBase+Math.min(day,ZS.maxNightDayCap)*ZS.maxNightPerDay:ZS.maxDay)*R.spawn*hordeMul());spawnTimer-=dt;
+  const night=nightFactor()>0.5;const R=ringAt(player.pos.x,player.pos.z);const maxZ=Math.round((night?ZS.maxNightBase+Math.min(day,ZS.maxNightDayCap)*ZS.maxNightPerDay:ZS.maxDay)*R.spawn*hordeMul()*(night&&gameMode.enemies?difficulty.pack||1:1));spawnTimer-=dt;
   if(spawnTimer<=0){spawnTimer=(night?ZS.spawnEveryNight:ZS.spawnEveryDay)/(R.spawn*hordeMul());if(zombies.filter(z=>!z.dead&&!z.boss&&!z.passive).length<maxZ)trySpawnZombie();}
   faunaT-=dt;if(faunaT<=0){faunaT=FAUNA.every;if(FAUNA_ON&&!night&&ringIndex(playerDist())===0&&zombies.filter(z=>z.passive&&!z.dead).length<FAUNA.max)trySpawnHerd();}
   if(night&&bossNight!==day&&!bossAlive()&&(day>=ASHWING_RULES.fromDay||ringIndex(playerDist())>=ASHWING_RULES.fromRing)&&clock-lastBoss>ASHWING_RULES.minGapSec){bossNight=day;if(Math.random()<ASHWING_RULES.chancePerNight)spawnBoss();}
@@ -5569,8 +5581,10 @@ const isDoorId=b=>b===B.DOOR||b===B.DOOR_TOP||b===B.DOOR_OPEN||b===B.DOOR_TOP_OP
 const isDoorTop=b=>b===B.DOOR_TOP||b===B.DOOR_TOP_OPEN;
 function doorAt(x,y,z){const b=getBlock(x,y,z);if(!isDoorId(b))return null;return doors.get(skey(x,isDoorTop(b)?y-1:y,z))||null;}
 // place a door whose lower half is at (x,y,z); facing from the placer's horizontal look direction
-function placeDoor(x,y,z,dirX,dirZ){if(getBlock(x,y,z)||getBlock(x,y+1,z))return null;
-  const d={x,y,z,axis:Math.abs(dirX)>Math.abs(dirZ)?'x':'z',open:false,hp:STRUCT.door.breachTime};
+function doorBreakable(d){return !d.iron&&gameMode.enemies&&difficulty.doorBreak&&nightFactor()>0.5;}
+let skipDoorDrop=0;
+function placeDoor(x,y,z,dirX,dirZ,iron){if(getBlock(x,y,z)||getBlock(x,y+1,z))return null;
+  const d={x,y,z,axis:Math.abs(dirX)>Math.abs(dirZ)?'x':'z',open:false,hp:STRUCT.door.breachTime};if(iron)d.iron=true;
   doors.set(skey(x,y,z),d);changeBlocks([[x,y,z,B.DOOR],[x,y+1,z,B.DOOR_TOP]]);fire('doorChanged',skey(x,y,z),d);return d;}
 function setDoorOpen(d,open){if(d.open===open)return;d.open=open;
   changeBlocks([[d.x,d.y,d.z,open?B.DOOR_OPEN:B.DOOR],[d.x,d.y+1,d.z,open?B.DOOR_TOP_OPEN:B.DOOR_TOP]]);fire('doorChanged',skey(d.x,d.y,d.z),d);}
@@ -5595,7 +5609,7 @@ function chestTake(c,i){const s=c.slots[i];if(!s)return 0;addItem(s.k,s.n);c.slo
 function onBlockRemoved(x,y,z,old,byPlayer){
   if(isDoorId(old)){const ly=isDoorTop(old)?y-1:y;const k=skey(x,ly,z);if(!doors.has(k))return;const d=doors.get(k);doors.delete(k);
     const oy=isDoorTop(old)?ly:ly+1;if(isDoorId(getBlock(x,oy,z)))changeBlocks([[x,oy,z,0]]);
-    if(byPlayer&&isDoorTop(old))addItem(B.DOOR,1); // lower half carries the drop; mining the top refunds here
+    if(byPlayer&&d.iron){addItem(B.IRON_DOOR,1);if(!isDoorTop(old))skipDoorDrop=1;}else if(byPlayer&&isDoorTop(old))addItem(B.DOOR,1); // lower half carries the drop; mining the top refunds here
     fire('doorChanged',k,null);return d;}
   if(old===B.SHELF){const key=skey(x,y,z),k=shelves.get(key);if(!k)return;shelves.delete(key);addItem(k,1);fire('shelfChanged',key,0);fire('shelfSpilled',key,k);return;}
   if(old===B.CHEST){const k=skey(x,y,z);const c=chests.get(k);chests.delete(k);if(!c)return;const items=c.slots.filter(Boolean);
@@ -5608,7 +5622,7 @@ function zombieDoorPush(z,dt,dirX,dirZ){const reach=Math.max(z.hw+0.3,STRUCT.doo
     // (closed panel is a thin slab at the cell's low edge on its axis, matching the client view)
     const ax=d.axis==='z'?'z':'x',plane=(ax==='z'?fz:fx)+0.06,c=z.pos[ax],g=STRUCT.door.clawGap,side=c<plane?-1:1;
     if(Math.abs(c-plane)<g)z.pos[ax]=plane+side*g;z.atDoor=0.3;
-    d.hp-=dt*(z.kind==='bonewalker'?STRUCT.door.bonewalkerMul:1);z.doorT=(z.doorT||0)-dt;if(z.doorT<=0){z.doorT=STRUCT.door.hitEvery;fire('doorHit',d,z);}
+    if(!doorBreakable(d))return true;d.hp-=dt*(z.kind==='bonewalker'?STRUCT.door.bonewalkerMul:1);z.doorT=(z.doorT||0)-dt;if(z.doorT<=0){z.doorT=STRUCT.door.hitEvery;fire('doorHit',d,z);}
     if(d.hp<=0){fire('doorBreached',d,z);changeBlocks([[d.x,d.y,d.z,0],[d.x,d.y+1,d.z,0]]);}
     return true;}
   return false;}
@@ -5648,9 +5662,11 @@ const HOTBAR=new Array(PACK_SIZE).fill(null);
 function isItemKey(k){return k==='gun'||k==='grenade'||(k==='grapple'&&hasGrapple())||(k==='spade'&&spadeTier>=0)||(k==='axe'&&axeTier>=0)||PACK_RES.includes(k)||(typeof k==='number'&&!!BLOCKS[k]&&inv[k]!==undefined);}
 function slotCount(k){if(k==null)return 0;if(k==='gun')return gunAmmo();if(k==='spade'||k==='axe')return toolTier(k)+1;return itemCount(k)||0;}
 // drop invalid/duplicate keys, then give every owned item type a slot (backpack first)
+// B3: craft-only items take a backpack slot only once you own one (the 36-slot pack is full otherwise)
+const LAYOUT_OPTIONAL=new Set([B.IRON_DOOR,B.BEACON]);
 function ensureLayout(){const seen=new Set();
   for(let i=0;i<PACK_SIZE;i++){const k=HOTBAR[i];if(k==null)continue;if(!isItemKey(k)||seen.has(k))HOTBAR[i]=null;else seen.add(k);}
-  for(const k of ['gun','grenade',...(hasGrapple()?['grapple']:[]),...(spadeTier>=0?['spade']:[]),...(axeTier>=0?['axe']:[]),...Object.keys(inv).map(Number),...PACK_RES]){if(seen.has(k))continue;
+  for(const k of ['gun','grenade',...(hasGrapple()?['grapple']:[]),...(spadeTier>=0?['spade']:[]),...(axeTier>=0?['axe']:[]),...Object.keys(inv).map(Number),...PACK_RES]){if(seen.has(k)||(LAYOUT_OPTIONAL.has(k)&&!(inv[k]>0)))continue;
     let j=HOTBAR.indexOf(null,HOTBAR_SIZE);if(j<0)j=HOTBAR.indexOf(null);if(j<0)break;HOTBAR[j]=k;seen.add(k);}
   fire('layoutChanged');}
 on('toolGained',k=>{ensureLayout();const j=HOTBAR.indexOf(k),e=HOTBAR.indexOf(null);if(j>=HOTBAR_SIZE&&e>=0&&e<HOTBAR_SIZE)moveSlot(j,e);});
@@ -5768,7 +5784,7 @@ on('blocksChanged',list=>{for(const [x,y,z,b,old] of list){if(isSign(old))pruneS
 // ---- hunger + food ----
 player.hunger=HUNGER.max;player.healPool=0;let starveAcc=0;
 function tickHunger(dt,sprint){if(!player.alive)return;if(gameMode.invulnerable){player.hunger=HUNGER.max;return;}
-  player.hunger=Math.max(0,player.hunger-dt*HUNGER.max/(HUNGER.drainDays*(TEST?480:DAYLEN))*(sprint?HUNGER.sprintMul:1));
+  player.hunger=Math.max(0,player.hunger-dt*HUNGER.max/(HUNGER.drainDays*(TEST?480:DAYLEN))*(sprint?HUNGER.sprintMul:1)*(gameMode.enemies&&difficulty.hunger||1));
   if(player.healPool>0){const h=Math.min(player.healPool,HUNGER.healRate*dt,PS.maxHp-player.hp);player.hp+=Math.max(0,h);player.healPool=player.hp>=PS.maxHp?0:player.healPool-HUNGER.healRate*dt;}
   if(player.hunger<=0){starveAcc+=dt;if(starveAcc>=HUNGER.starveEvery){starveAcc=0;if(player.hp>HUNGER.starveFloor){player.hp=Math.max(HUNGER.starveFloor,player.hp-HUNGER.starveDmg);player.lastHurt=clock;fire('starving');fire('playerHurt',HUNGER.starveDmg);}}}else starveAcc=0;}
 function canEat(k){return !!FOOD[k]&&res[k]>0&&player.alive&&(player.hunger<HUNGER.max-0.5||player.hp<PS.maxHp);}
@@ -5903,11 +5919,11 @@ function updateStarfall(dt){const P=player.pos;if(Math.hypot(P.x,P.z)<STARFALL.m
 // ===== core/crafting.js =====
 // ================= Crafting rules (engine-agnostic) =================
 // reforge recipes target the equipped gun: owned once it is at that tier, craftable only from the tier just below
-function recipeOwned(r){return (r.give.grapple!==undefined&&hasGrapple())||(r.give.pickTier!==undefined&&pickTier>=r.give.pickTier)||(r.give.spadeTier!==undefined&&spadeTier>=r.give.spadeTier)||(r.give.axeTier!==undefined&&axeTier>=r.give.axeTier)||(r.give.gun!==undefined&&guns.includes(r.give.gun))||(r.give.gunTier!==undefined&&gunTiers[gun]>=r.give.gunTier);}
+function recipeOwned(r){return (r.give.armor!==undefined&&!!armor[r.give.armor])||(r.give.grapple!==undefined&&hasGrapple())||(r.give.pickTier!==undefined&&pickTier>=r.give.pickTier)||(r.give.spadeTier!==undefined&&spadeTier>=r.give.spadeTier)||(r.give.axeTier!==undefined&&axeTier>=r.give.axeTier)||(r.give.gun!==undefined&&guns.includes(r.give.gun))||(r.give.gunTier!==undefined&&gunTiers[gun]>=r.give.gunTier);}
 function recipeLocked(r){return r.give.gunTier!==undefined&&gunTiers[gun]<r.give.gunTier-1;}
 function canCraft(r){return !recipeOwned(r)&&!recipeLocked(r)&&stationOk(r)&&Object.entries(r.need).every(([k,n])=>itemCount(k)>=n);}
 function craft(r){if(!canCraft(r))return false;for(const [k,n] of Object.entries(r.need))addItem(k,-n);
-  for(const [k,n] of Object.entries(r.give)){if(k==='pickTier')pickTier=Math.max(pickTier,n);else if(k==='spadeTier'||k==='axeTier'){const had=toolTier(k==='spadeTier'?'spade':'axe')>=0;if(k==='spadeTier')spadeTier=Math.max(spadeTier,n);else axeTier=Math.max(axeTier,n);if(!had)fire('toolGained',k==='spadeTier'?'spade':'axe');}else if(k==='gun'){unlockGun(n);}else if(k==='gunTier'){gunTiers[gun]=n;fire('gunChanged');}else addItem(k,n);}
+  for(const [k,n] of Object.entries(r.give)){if(k==='armor'){armor[n]=1;fire('armorChanged',n);}else if(k==='pickTier')pickTier=Math.max(pickTier,n);else if(k==='spadeTier'||k==='axeTier'){const had=toolTier(k==='spadeTier'?'spade':'axe')>=0;if(k==='spadeTier')spadeTier=Math.max(spadeTier,n);else axeTier=Math.max(axeTier,n);if(!had)fire('toolGained',k==='spadeTier'?'spade':'axe');}else if(k==='gun'){unlockGun(n);}else if(k==='gunTier'){gunTiers[gun]=n;fire('gunChanged');}else addItem(k,n);}
   fire('crafted',r);return true;}
 
 // ===== core/save.js =====
@@ -5925,7 +5941,7 @@ function serializeGame(){const edits={};for(const [k,m] of editLog){const a=[];f
   return {v:SAVE_VERSION,seed:SEED,savedAt:Date.now(),mode:gameModeId,goalIdx,runBest,bestDist,
     player:{pos:v3a(player.pos),yaw:player.yaw,pitch:player.pitch,hp:player.hp,flying:!!player.flying,hunger:+player.hunger.toFixed(2)},bed,spawn:v3a(spawnPoint),
     inv:Object.assign({},inv),res:Object.assign({},res),pickTier,spadeTier,axeTier,guns:guns.slice(),gunTiers:gunTiers.slice(),gun,slot,kills,day,worldTime,clock,signs:[...signs].map(([k,v])=>[k,v.t,v.f]),
-    doors:[...doors.values()].map(d=>({x:d.x,y:d.y,z:d.z,axis:d.axis,open:d.open,hp:d.hp})),
+    doors:[...doors.values()].map(d=>({x:d.x,y:d.y,z:d.z,axis:d.axis,open:d.open,hp:d.hp,iron:d.iron||undefined})),
     chests:[...chests.entries()].map(([k,c])=>({k,slots:c.slots,face:c.face,grave:c.grave||undefined,label:c.label||undefined})),shelves:[...shelves.entries()],edits,
     difficulty:difficultyId,camp,recallCd:recall.cd,landmarks:serializeLandmarks(),layout:HOTBAR.slice()};}
 // short summary for the title screen
@@ -5945,7 +5961,7 @@ guns=s.guns.slice();gun=s.gun;slot=s.slot;kills=s.kills;day=s.day;signs.clear();
   const P=s.player;player.pos.set(P.pos[0],P.pos[1],P.pos[2]);player.vel.set(0,0,0);player.yaw=P.yaw;player.pitch=P.pitch;player.hp=P.hp;player.alive=true;player.hunger=P.hunger??HUNGER.max;player.healPool=0;bed=s.bed||null;fallingBlocks.length=0;player.flying=!!P.flying&&!!gameMode.fly;
   spawnPoint.set(s.spawn[0],s.spawn[1],s.spawn[2]);
   for(const [k,d] of doors){doors.delete(k);fire('doorChanged',k,null);}
-  for(const d of s.doors){const o={x:d.x,y:d.y,z:d.z,axis:d.axis,open:d.open,hp:d.hp};doors.set(skey(d.x,d.y,d.z),o);}
+  for(const d of s.doors){const o={x:d.x,y:d.y,z:d.z,axis:d.axis,open:d.open,hp:d.hp};if(d.iron)o.iron=true;doors.set(skey(d.x,d.y,d.z),o);}
   for(const k of shelves.keys())fire('shelfChanged',k,0);shelves.clear();for(const [k,id] of (s.shelves||[]))if(SHELF_TROPHIES.has(+id))shelves.set(k,+id); // pre-M29 saves have none
   chests.clear();for(const c of s.chests)chests.set(c.k,{slots:c.slots,face:c.face||[0,0,1],grave:!!c.grave,label:c.label|0});
   if(Array.isArray(s.layout)&&s.layout.length>=36&&s.layout.length<=PACK_SIZE){HOTBAR.fill(null);for(let i=0;i<s.layout.length;i++)HOTBAR[i]=s.layout[i];ensureLayout();} // 36-slot saves (pre-M27) gain the new backpack row
@@ -5955,6 +5971,37 @@ guns=s.guns.slice();gun=s.gun;slot=s.slot;kills=s.kills;day=s.day;signs.clear();
   clearZombies();fire('modeChanged',gameModeId);return live;}
 // call after the host applied `live` writes, so door views exist on top of the restored voxels
 function announceRestoredStructures(){for(const [k,d] of doors)fire('doorChanged',k,d);for(const [k,id] of shelves)fire('shelfChanged',k,id);fire('difficultyChanged',difficultyId);fire('campChanged',camp);fire('gameLoaded');}
+
+// ===== core/b3.js =====
+// ================= CORE B3: armour slots, air/drowning, camp beacons, quick-stack =================
+// Events: 'armorChanged'(slot) 'airChanged'(air) 'drowning'(dmg) 'beaconsChanged' 'quickStacked'(moved,chests)
+const armor={helm:0,plate:0};
+function armorCut(){let c=0;for(const k in ARMOR)if(armor[k])c+=ARMOR[k].cut;return c;}
+// ---- air: drains while the eye is under water, refills quickly in air; at 0 the player takes AIR.dmg every AIR.every seconds
+player.air=AIR.max;let drownAcc=0;
+function headInWater(){return getBlock(Math.floor(player.pos.x),Math.floor(player.pos.y+PS.eye),Math.floor(player.pos.z))===B.WATER;}
+function tickAir(dt){if(!player.alive)return;const was=player.air;
+  if(headInWater()&&!gameMode.invulnerable){player.air=Math.max(0,player.air-dt);if(player.air<=0){drownAcc+=dt;if(drownAcc>=AIR.every){drownAcc-=AIR.every;hurtPlayer(AIR.dmg,null,false,'drowned');fire('drowning',AIR.dmg);}}}
+  else{drownAcc=0;player.air=Math.min(AIR.max,player.air+dt*AIR.regen);}
+  if(player.air!==was)fire('airChanged',player.air);}
+// ---- camp beacons: placed BEACON blocks become waypoints (minimap + compass)
+const beacons=new Map();let beaconsVer=0;
+on('blocksChanged',list=>{let ch=false;for(const [x,y,z,b,old] of list){const k=x+','+y+','+z;
+  if(b===B.BEACON&&!beacons.has(k)){if(beacons.size>=BEACON_MAX){const first=beacons.keys().next().value;beacons.delete(first);}beacons.set(k,{x,y,z,n:++beaconsVer});ch=true;}
+  else if(old===B.BEACON&&b!==B.BEACON&&beacons.delete(k))ch=true;}
+  if(ch){beaconsVer++;fire('beaconsChanged');}});
+function beaconList(){return [...beacons.values()];}
+function nearestBeacon(){let best=null,bd=1e18;for(const b of beacons.values()){const d=(b.x+0.5-player.pos.x)**2+(b.z+0.5-player.pos.z)**2;if(d<bd){bd=d;best=b;}}return best?Object.assign({d:Math.sqrt(bd)},best):null;}
+// ---- quick-stack: move every pack item that a nearby chest already holds into that chest (hotbar weapons untouched)
+const QUICKSTACK_R=6;
+function quickStack(){let moved=0,used=0;const px=player.pos.x,py=player.pos.y,pz=player.pos.z;
+  for(const [k,c] of chests){if(c.grave)continue;const [x,y,z]=k.split(',').map(Number);if((x+0.5-px)**2+(y+0.5-py)**2+(z+0.5-pz)**2>QUICKSTACK_R*QUICKSTACK_R)continue;
+    const keys=new Set(c.slots.filter(Boolean).map(s=>s.k));let m=0;for(const key of keys){const n=itemCount(key)|0;if(n>0)m+=chestPut(c,key,n)||0;}if(m>0){moved+=m;used++;}}
+  fire('quickStacked',moved,used);return {moved,chests:used};}
+// ---- save hooks (armour + beacons ride along in the run snapshot)
+{const _ser=serializeGame,_des=deserializeGame;
+  serializeGame=function(){const s=_ser.apply(this,arguments);s.armor=Object.assign({},armor);s.beacons=beaconList().map(b=>[b.x,b.y,b.z]);s.air=player.air;return s;};
+  deserializeGame=function(s){const r=_des.apply(this,arguments);for(const k in armor)armor[k]=s&&s.armor&&s.armor[k]?1:0;beacons.clear();for(const [x,y,z] of (s&&s.beacons)||[])beacons.set(x+','+y+','+z,{x,y,z,n:++beaconsVer});player.air=AIR.max;beaconsVer++;fire('beaconsChanged');fire('armorChanged');return r;};}
 
 // ===== client/app_state.js =====
 // client-only UI/session state (not game rules)
@@ -6017,7 +6064,7 @@ function setA11y(k,v){if(!(k in A11Y))return;A11Y[k]=!!v;saveGfx();}
 // ================= CLIENT (Three.js presentation layer) =================
 const T = THREE;
 // atlas cell index for each tile name used in BLOCKS[].tiles (render-side mapping)
-const TL={grassTop:0,grassSide:1,dirt:2,stone:3,cobble:4,logSide:5,logTop:6,leaves:7,sand:8,coal:9,iron:10,gold:11,diamond:12,planks:13,glass:14,brick:15,lantern:16,bedrock:17,water:18,snowTop:19,snowSide:20,chargeTop:21,chargeSide:22,cinder:23,magma:24,emberite:25,doorLo:26,doorHi:27,chestTop:28,chestFront:29,wayTop:30,waySide:31,voltite:32,voltsteel:33,voidTop:34,voidSide:35,voidShale:36,lureTop:37,lureSide:38,trophy:39,banner:40,bannerTop:41,voidglass:42,runebrick:43,sandtile:44,shelfSide:45,shelfTop:46,starrock:47,stargoo:48,gravel:49,torch:50,torchWall:51,ladder:52,bush:53,furnace:54,furnaceTop:55,bedroll:56,hayTop:57,haySide:58};
+const TL={grassTop:0,grassSide:1,dirt:2,stone:3,cobble:4,logSide:5,logTop:6,leaves:7,sand:8,coal:9,iron:10,gold:11,diamond:12,planks:13,glass:14,brick:15,lantern:16,bedrock:17,water:18,snowTop:19,snowSide:20,chargeTop:21,chargeSide:22,cinder:23,magma:24,emberite:25,doorLo:26,doorHi:27,chestTop:28,chestFront:29,wayTop:30,waySide:31,voltite:32,voltsteel:33,voidTop:34,voidSide:35,voidShale:36,lureTop:37,lureSide:38,trophy:39,banner:40,bannerTop:41,voidglass:42,runebrick:43,sandtile:44,shelfSide:45,shelfTop:46,starrock:47,stargoo:48,gravel:49,torch:50,torchWall:51,ladder:52,bush:53,furnace:54,furnaceTop:55,bedroll:56,hayTop:57,haySide:58,beaconTop:59,beaconSide:60,ironDoor:61};
 // render view of the block table: same data + resolved atlas tile indices
 const BD=BLOCKS.map(d=>Object.assign({},d,{tex:d.tiles.map(n=>TL[n])}));
 // ---------------- Procedural HD textures (resolution independent) ----------------
@@ -6271,6 +6318,13 @@ PAINT[TL.haySide]=(u,v,g)=>{const n=fbm(u,v,3,3,5701),st=fbm(u*1.2,v*14,1,3,5702
   if(band){setC([92,64,34],0.8+n*0.3,0.5,0.9);return;}setC([214,178,84],0.72+st*0.4+n*0.12+(g-0.5)*0.12,0.4+st*0.4,0.97);};
 PAINT[TL.hayTop]=(u,v,g)=>{const n=fbm(u,v,6,3,5711),r=Math.hypot(u-0.5,v-0.5),sw=Math.sin(r*60+Math.atan2(v-0.5,u-0.5)*2+n*4)*0.5+0.5;
   const band=Math.abs(u-0.25)<0.035||Math.abs(u-0.75)<0.035;if(band){setC([92,64,34],0.8+n*0.3,0.5,0.9);return;}setC([200,162,72],0.7+sw*0.3+n*0.12+(g-0.5)*0.1,0.4+sw*0.4,0.97);};
+// B3: camp beacon (cobble frame around a glowing cyan crystal) and iron door (riveted plates)
+PAINT[TL.beaconSide]=(u,v,g)=>{const n=fbm(u,v,5,3,5801);const fr=Math.min(u,v,1-u,1-v);if(fr<0.16){setC([120,118,112],0.75+n*0.35,0.5,0.9);return;}
+  const cx=Math.abs(u-0.5)+Math.abs(v-0.5)*0.6;if(cx<0.26){const k=1-cx/0.26;setC([90,220,255],0.75+k*0.5+n*0.1,0.8,0.25);return;}setC([40,52,60],0.8+n*0.3,0.3,0.6);};
+PAINT[TL.beaconTop]=(u,v,g)=>{const n=fbm(u,v,5,3,5811),r=Math.hypot(u-0.5,v-0.5);if(r<0.22){setC([150,240,255],0.85+(0.22-r)*2+n*0.1,0.9,0.2);return;}
+  const fr=Math.min(u,v,1-u,1-v);setC(fr<0.12?[110,108,104]:[60,70,78],0.75+n*0.35,0.5,0.85);};
+PAINT[TL.ironDoor]=(u,v,g)=>{const n=fbm(u,v,4,3,5821);const seam=Math.abs(v-0.5)<0.03||Math.min(u,v,1-u,1-v)<0.06;const riv=[[0.15,0.15],[0.85,0.15],[0.15,0.85],[0.85,0.85],[0.15,0.42],[0.85,0.58]].some(([a,b])=>Math.hypot(u-a,v-b)<0.045);
+  if(riv){setC([200,206,214],1,0.7,0.3,0.9);return;}setC([128,136,148],(seam?0.6:0.85)+n*0.25+(g-0.5)*0.08,0.4,0.45,0.8);};
 PAINT[TL.bedroll]=(u,v,g)=>{const n=fbm(u,v,24,2,5601),w=Math.sin(u*90+n*3)*0.04;const band=Math.abs(((v*3)%1)-0.5)<0.06;
   if(v<0.22){setC([226,212,186],0.85+n*0.25,0.6+Math.sin(v/0.22*Math.PI)*0.4,0.95);return;}
   setC(band?[230,214,180]:[156,62,44],0.75+n*0.35+w+(g-0.5)*0.08,0.4+n*0.4,0.97);};
@@ -7166,8 +7220,9 @@ function tileBox(w,h,d,tile){const g=new T.BoxGeometry(w,h,d);const uv=g.attribu
   for(let i=0;i<uv.count;i++)uv.setXY(i,u0+(u1-u0)*uv.getX(i),v0+(v1-v0)*uv.getY(i));return g;}
 const doorGeoLo=tileBox(1,1,0.12,TL.doorLo),doorGeoHi=tileBox(1,1,0.12,TL.doorHi);
 const doorViews=new Map();
+let _idm=null;function ironDoorMat(){if(!_idm){_idm=doorMat.clone();_idm.color.setHex(0x9aa6b4);}return _idm;}
 function makeDoorView(d){const root=new T.Group(),pivot=new T.Group();root.add(pivot);
-  const lo=new T.Mesh(doorGeoLo,doorMat),hi=new T.Mesh(doorGeoHi,doorMat);lo.position.set(0.44,0.5,0);hi.position.set(0.44,1.5,0);
+  const dm=d.iron?ironDoorMat():doorMat;const lo=new T.Mesh(doorGeoLo,dm),hi=new T.Mesh(doorGeoHi,dm);lo.position.set(0.44,0.5,0);hi.position.set(0.44,1.5,0);
   for(const m of [lo,hi]){m.castShadow=m.receiveShadow=true;pivot.add(m);}
   pivot.position.set(-0.44,0,-0.44);root.position.set(d.x+0.5,d.y,d.z+0.5);root.rotation.y=d.axis==='z'?0:Math.PI/2;
   root.userData={pivot,ang:d.open?-Math.PI/2:0,shake:0};pivot.rotation.y=root.userData.ang;scene.add(root);return root;}
@@ -7288,7 +7343,7 @@ function updateInteraction(dt){
     else{breakTarget=null;breakProg=0;}
     if(mouseR&&h&&placeCD<=0&&!held('sprint')&&interactBlock(h)){placeCD=0.35;mouseR=false;}
     else if(mouseR&&h&&placeCD<=0&&typeof item==='number'){placeCD=0.22;const x=h.x+h.nx,y=h.y+h.ny,z=h.z+h.nz;const b=item;
-      if(b===B.DOOR){if((gameMode.infinite||inv[b]>0)&&!getBlock(x,y,z)&&!getBlock(x,y+1,z)&&!boxHits(x,y,z)&&!boxHits(x,y+1,z)){const d=lookDir();if(placeDoor(x,y,z,d.x,d.z)){consumeBlock(b);noiseBurst(0.08,700,0.18);updateHotbar();}}}
+      if(b===B.DOOR||b===B.IRON_DOOR){if((gameMode.infinite||inv[b]>0)&&!getBlock(x,y,z)&&!getBlock(x,y+1,z)&&!boxHits(x,y,z)&&!boxHits(x,y+1,z)){const d=lookDir();if(placeDoor(x,y,z,d.x,d.z,b===B.IRON_DOOR)){consumeBlock(b);noiseBurst(0.08,700,0.18);updateHotbar();}}}
       else if(b===B.WAYSTONE){if((gameMode.infinite||inv[b]>0)&&!getBlock(x,y,z)&&!boxHits(x,y,z)){if(placeWaystone(x,y,z)){consumeBlock(b);noiseBurst(0.3,900,0.14);updateHotbar();}}}
       else if(b===B.CHEST){if((gameMode.infinite||inv[b]>0)&&!getBlock(x,y,z)&&!boxHits(x,y,z)){const d=lookDir();if(placeChest(x,y,z,d.x,d.z)){consumeBlock(b);noiseBurst(0.07,700,0.16);updateHotbar();}}}
       else if(slabMerges(h,b)){if((gameMode.infinite||inv[b]>0)&&!boxHits(h.x,h.y,h.z)){setBlock(h.x,h.y,h.z,SHAPE_BASE[b]);consumeBlock(b);noiseBurst(0.06,800,0.15);updateHotbar();}}
@@ -7397,7 +7452,7 @@ function recipeHTML(r,tg,done){if(!tg)return `<b>${r.name}</b>${done?'<span>✔ 
   const nd=Math.round(g.dmg*T1.dmg),nr=g.rate*T1.rate;
   return head+`<span class="delta">Damage ${Math.round(st.dmg)} → <b>${nd}</b> · Fire rate ${(1/st.rate).toFixed(1)} → <b>${(1/nr).toFixed(1)}</b>/s</span>`+costHTML(r);}
 function renderCraft(){renderTabs();const el=document.getElementById('recipes');el.innerHTML='';
-  RECIPES.filter(r=>craftTab==='all'||r.cat===craftTab).sort((a,b)=>(canCraft(b)-canCraft(a))||(recipeOwned(a)-recipeOwned(b))).forEach(r=>{const can=canCraft(r);const done=recipeOwned(r);
+  RECIPES.filter(r=>(craftTab==='all'||r.cat===craftTab)&&craftFilter(r)).sort((a,b)=>(canCraft(b)-canCraft(a))||(recipeOwned(a)-recipeOwned(b))).forEach(r=>{const can=canCraft(r);const done=recipeOwned(r);
   const d=document.createElement('button');d.className='recipe'+(can?' can':'')+(done?' done':'')+(r.give.gunTier!==undefined?' reforge':'');d.dataset.cat=r.cat;d.disabled=!can;const tg=r.give.gunTier!==undefined;d.innerHTML=recipeHTML(r,tg,done);
   d.onclick=()=>{if(craft(r)){noiseBurst(0.08,1200,0.2);renderCraft();renderInv();updateHotbar();updateHUD();}};el.appendChild(d);});}
 function fitPanel(el){el.style.zoom=1;const r=el.getBoundingClientRect(),k=Math.min(1,(innerWidth-16)/r.width,(innerHeight-16)/r.height);el.style.zoom=k<1?k.toFixed(3):'';}
@@ -7571,6 +7626,7 @@ function drawMap(ctx,size,radius,step){const P=player.pos,px=Math.floor(P.x),pz=
   mark(0,0,'#e8e8e8',big?4:3,big?'Spawn':'',big);
   for(const L of foundLandmarks())if(L.star)mark(L.x+0.5,L.z+0.5,L.cleared?'#5a9a90':'#4dffd2',big?6:4,big?(L.cleared?'Starfall (looted)':'Starfall crater'):'',true);else mark(L.x+0.5,L.z+0.5,L.cleared?'#8a7aa8':'#b06aff',big?6:4,big?(L.cleared?'Spire (cleared)':'Void Spire'):'',true);
   if(camp)mark(camp.x+0.5,camp.z+0.5,'#ffb347',big?6:4,big?'Camp':'',true);
+  for(const b of beaconList())mark(b.x+0.5,b.z+0.5,'#6fe0ff',big?5:3,big?'Beacon':'',true);
   // player arrow (forward = -sin yaw, -cos yaw)
   const c=size/2,s=big?9:7;ctx.save();ctx.translate(c,c);ctx.rotate(-player.yaw);
   ctx.beginPath();ctx.moveTo(0,-s);ctx.lineTo(s*0.65,s*0.7);ctx.lineTo(0,s*0.35);ctx.lineTo(-s*0.65,s*0.7);ctx.closePath();ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.stroke();ctx.restore();
@@ -7826,8 +7882,8 @@ function perfWatch(dt){fpsSampleT+=dt;if(fpsSampleT<1)return;fpsSampleT=0;fpsHis
 // ===== client/b2_ui.js =====
 // ---------------- B2 HUD extras: magazine readout, compass + coordinates, HUD/World options, achievements ----------------
 const HUDOPT_KEY='blockfall.hudopt.v1';
-const HUDOPT=(()=>{let o={};try{if(!TEST)o=JSON.parse(localStorage.getItem(HUDOPT_KEY)||'{}')||{};}catch(e){}return {compass:o.compass!==false,coords:!!o.coords,weather:o.weather!==false};})();
-const HUDOPT_TOGGLES=[{k:'compass',label:'Compass'},{k:'coords',label:'Coordinates'},{k:'weather',label:'Weather'}];
+const HUDOPT=(()=>{let o={};try{if(!TEST)o=JSON.parse(localStorage.getItem(HUDOPT_KEY)||'{}')||{};}catch(e){}return {compass:o.compass!==false,coords:!!o.coords,weather:o.weather!==false,dmgnum:o.dmgnum!==false};})();
+const HUDOPT_TOGGLES=[{k:'compass',label:'Compass'},{k:'coords',label:'Coordinates'},{k:'weather',label:'Weather'},{k:'dmgnum',label:'Damage numbers'}];
 function setHudOpt(k,v){if(!(k in HUDOPT))return;HUDOPT[k]=!!v;if(!TEST)try{localStorage.setItem(HUDOPT_KEY,JSON.stringify(HUDOPT));}catch(e){}}
 const _b2rs=renderSettings;renderSettings=function(){_b2rs.apply(this,arguments);document.querySelectorAll('.gfxpanel').forEach(el=>{
   const r=document.createElement('div');r.className='gfxrow';r.innerHTML=`<span class="gl">HUD &amp; World</span>`+HUDOPT_TOGGLES.map(t=>`<button class="gbtn hudopt${HUDOPT[t.k]?' on':''}" data-a="${t.k}">${t.label}: ${HUDOPT[t.k]?'On':'Off'}</button>`).join('');el.appendChild(r);
@@ -7905,6 +7961,127 @@ function syncChestLabels(){const now=performance.now();if(chestLabelsSeen===ches
   for(const [k,m] of chestRibbons){const c=chests.get(k);if(!c||!c.label||m.userData.l!==c.label){scene.remove(m);chestRibbons.delete(k);}}
   for(const [k,c] of chests)if(c.label&&!chestRibbons.has(k)){const [x,y,z]=k.split(',').map(Number);const m=new T.Mesh(new T.BoxGeometry(1.02,0.12,0.2),new T.MeshStandardMaterial({color:CHEST_LABELS[c.label],roughness:0.6}));
     m.position.set(x+0.5,y+0.75,z+0.5);m.rotation.y=Math.abs((c.face||[0,0,1])[0])>0?Math.PI/2:0;m.userData.l=c.label;scene.add(m);chestRibbons.set(k,m);}}
+
+// ===== client/b3_ui.js =====
+// ================= B3 client: title polish, tips, air/armour HUD, beacons, craft search, quick-stack, dmg numbers, low-HP pulse, day critters =================
+(function b3css(){const st=document.createElement('style');st.textContent=`
+#logo{display:block;height:72px;width:auto;max-width:92vw;margin:0 auto;image-rendering:pixelated}
+@media (max-height:560px){#logo{height:46px}}
+#b3tip{position:fixed;left:50%;top:84px;transform:translateX(-50%);max-width:min(440px,86vw);background:rgba(16,22,30,.86);border:1px solid #ffb347;border-radius:8px;padding:8px 30px 8px 12px;font:13px/1.35 sans-serif;color:#ffe9c4;z-index:30;display:none;pointer-events:auto}
+#b3tip b{color:#ffb347;margin-right:6px}#b3tip .x{position:absolute;right:6px;top:4px;cursor:pointer;background:none;border:0;color:#ccc;font-size:16px}
+#b3tip .off{display:block;margin-top:4px;font-size:11px;color:#9ab;cursor:pointer;text-decoration:underline;background:none;border:0;padding:0}
+#airbar{position:fixed;left:50%;bottom:116px;transform:translateX(-50%);width:200px;height:8px;border-radius:4px;background:rgba(0,0,0,.45);display:none;overflow:hidden;z-index:6}
+#airbar i{display:block;height:100%;background:linear-gradient(90deg,#7fd8ff,#d8f6ff);width:100%}
+#armhud{position:fixed;left:50%;bottom:128px;transform:translateX(-50%);font:bold 11px monospace;color:#ffcf8a;text-shadow:0 1px 2px #000;display:none;z-index:6}
+#lowhp{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(190,0,0,.75) 100%)}
+.dmgn{position:fixed;font:bold 15px monospace;color:#fff;text-shadow:0 0 3px #000,0 1px 2px #000;pointer-events:none;z-index:7;display:none;transform:translate(-50%,-50%)}
+.dmgn.hd{color:#ffd23c;font-size:18px}
+#craftsearch{width:100%;box-sizing:border-box;margin:4px 0 6px;padding:5px 8px;border-radius:5px;border:1px solid #556;background:#141a22;color:#eee;font:13px sans-serif}
+#compbeacon{position:absolute;top:0;font:bold 11px monospace;color:#6fe0ff;text-shadow:0 0 3px #000;display:none;white-space:nowrap}
+`;document.head.appendChild(st);})();
+
+// ---------- title: voxel logo + painted backdrop + button sounds ----------
+const LOGO_FONT={B:['1110','1001','1110','1001','1110'],L:['1000','1000','1000','1000','1111'],O:['0110','1001','1001','1001','0110'],C:['0111','1000','1000','1000','0111'],K:['1001','1010','1100','1010','1001'],F:['1111','1000','1110','1000','1000'],A:['0110','1001','1111','1001','1001']};
+function drawLogo(cv){const word='BLOCKFALL',s=10,gap=1,W=word.length*(4+gap)*s+s*2,H=7*s+s;cv.width=W;cv.height=H;const g=cv.getContext('2d');
+  let x0=s;for(let li=0;li<word.length;li++){const ch=word[li],G=LOGO_FONT[ch];const drop=li===5?-s*0.6:0;// the F "falls"
+    for(let r=0;r<5;r++)for(let c=0;c<4;c++)if(G[r][c]==='1'){const x=x0+c*s,y=s+r*s+drop+s*0.5,t=r/4;
+      const top=[255,232-t*60|0,150-t*90|0],fr=[230-t*20|0,130-t*60|0,40];
+      g.fillStyle='rgba(0,0,0,.45)';g.fillRect(x+3,y+3,s,s);
+      g.fillStyle=`rgb(${fr})`;g.fillRect(x,y,s,s);g.fillStyle=`rgb(${top})`;g.fillRect(x+1,y+1,s-3,s-3);
+      g.fillStyle='rgba(255,255,255,.35)';g.fillRect(x+1,y+1,s-3,2);g.fillStyle='rgba(80,20,0,.35)';g.fillRect(x+s-2,y,2,s);}
+    x0+=(4+gap)*s;}
+  return cv;}
+function paintMenuBg(){const cv=document.createElement('canvas'),W=640,H=360;cv.width=W;cv.height=H;const g=cv.getContext('2d');let sd=1337;const R=()=>(sd=(sd*16807)%2147483647)/2147483647;
+  const sky=g.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#0c1430');sky.addColorStop(0.55,'#3a2a4a');sky.addColorStop(0.8,'#c8643a');g.fillStyle=sky;g.fillRect(0,0,W,H);
+  for(let i=0;i<90;i++){g.fillStyle=`rgba(255,255,255,${0.3+R()*0.6})`;g.fillRect(R()*W|0,R()*H*0.5|0,1,1);}
+  g.fillStyle='#f3ead0';g.fillRect(470,46,28,28);g.fillStyle='#d9cfb0';g.fillRect(476,52,6,6);g.fillRect(488,62,5,5);
+  const layer=(base,amp,col,step,seed)=>{g.fillStyle=col;for(let x=0;x<W;x+=step){const h=base+Math.round((Math.sin(x*0.013+seed)*0.6+Math.sin(x*0.031+seed*2)*0.4)*amp/step)*step;g.fillRect(x,h,step,H-h);}};
+  layer(220,40,'#2a2338',16,1);layer(250,30,'#1d2a24',12,3);
+  for(let i=0;i<9;i++){const x=(R()*W|0)&~7,y=262;g.fillStyle='#3b2a1a';g.fillRect(x+6,y-14,4,16);g.fillStyle='#173a22';g.fillRect(x,y-30,16,18);}
+  layer(285,14,'#132018',8,5);
+  g.fillStyle='#4a3424';g.fillRect(300,250,48,34);g.fillStyle='#6a2c1c';g.fillRect(294,240,60,12);g.fillStyle='#ffcf6a';g.fillRect(316,262,10,10);
+  const gl=g.createRadialGradient(321,267,2,321,267,60);gl.addColorStop(0,'rgba(255,190,90,.45)');gl.addColorStop(1,'rgba(255,150,60,0)');g.fillStyle=gl;g.fillRect(250,200,140,140);
+  for(const zx of [150,190,470,520]){g.fillStyle='#0b120e';g.fillRect(zx,262,8,8);g.fillRect(zx-1,270,10,14);g.fillRect(zx+8,272,8,3);g.fillStyle='#9cff6a';g.fillRect(zx+1,264,2,2);g.fillRect(zx+5,264,2,2);}
+  return cv.toDataURL();}
+let menuSfxT=0;
+function menuSfx(kind){if(TEST)return;const n=performance.now();if(kind==='hover'){if(n-menuSfxT<70)return;menuSfxT=n;try{tone(520,620,0.035,0.025,'sine');}catch(e){}}else{try{tone(660,990,0.06,0.07,'square');}catch(e){}}}
+(function initTitle(){const st=document.getElementById('start');if(!st)return;const h1=st.querySelector('h1');
+  if(h1&&!document.getElementById('logo')){const cv=document.createElement('canvas');cv.id='logo';cv.setAttribute('aria-label','Blockfall');drawLogo(cv);h1.textContent='';h1.style.filter='drop-shadow(0 4px 12px rgba(255,120,40,.4))';h1.appendChild(cv);}
+  try{st.style.backgroundImage='radial-gradient(ellipse at center,rgba(20,30,50,.35),rgba(0,0,0,.75)),url('+paintMenuBg()+')';st.style.backgroundSize='cover';st.style.backgroundPosition='center';}catch(e){}
+  document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.overlay button,#start button'))menuSfx('click');},true);
+  document.addEventListener('mouseover',e=>{if(e.target.closest&&e.target.closest('.overlay button,#start button'))menuSfx('hover');},true);})();
+
+// ---------- first-day tips ----------
+const TIPS_KEY='blockfall.tips.v1';
+const TIPS=(()=>{let o={};try{if(!TEST)o=JSON.parse(localStorage.getItem(TIPS_KEY)||'{}')||{};}catch(e){}return {done:o.done||{},off:!!o.off};})();
+function saveTips(){if(TEST)return;try{localStorage.setItem(TIPS_KEY,JSON.stringify(TIPS));}catch(e){}}
+const TIP_LIST=[
+ {id:'wood',t:'Gather wood',msg:'Hold attack on a tree trunk to chop logs.',done:()=>(inv[B.LOG]|0)>0||(inv[B.PLANKS]|0)>0},
+ {id:'pick',t:'Craft a pick',msg:'Press E (or the bag button) and craft a pickaxe from your logs and stone.',done:()=>pickTier>=1},
+ {id:'shelter',t:'Night is coming',msg:'Wall yourself in before dark — blocks, a door and a torch will keep the horde out.',when:()=>worldTime>0.38&&worldTime<0.56,done:()=>nightFactor()>0.6},
+ {id:'eat',t:'Hungry',msg:'Pick berry bushes or cook meat, then select it and use to eat.',when:()=>player.hunger<HUNGER.max*0.4,done:()=>player.hunger>=HUNGER.max*0.7}];
+let tipEl=null,tipCur=null,tipT=0;
+function tipBox(){if(tipEl)return tipEl;tipEl=document.createElement('div');tipEl.id='b3tip';document.body.appendChild(tipEl);
+  tipEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.classList.contains('off'))setTipsOff(true);else if(tipCur)dismissTip(tipCur.id);});return tipEl;}
+function dismissTip(id){TIPS.done[id]=1;saveTips();if(tipCur&&tipCur.id===id){tipCur=null;tipBox().style.display='none';}}
+function setTipsOff(v){TIPS.off=!!v;saveTips();if(v){tipCur=null;tipBox().style.display='none';}}
+function resetTips(){TIPS.done={};TIPS.off=false;saveTips();tipCur=null;}
+function currentTip(){if(TIPS.off||!gameMode.enemies||!playing||!player.alive)return null;
+  for(const t of TIP_LIST){if(TIPS.done[t.id])continue;if(t.done()){TIPS.done[t.id]=1;saveTips();continue;}if(t.when&&!t.when())continue;return t;}return null;}
+function syncTips(dt){tipT-=dt;if(tipT>0)return;tipT=0.5;const t=currentTip(),el=tipBox();
+  if(t!==tipCur){tipCur=t;if(t)el.innerHTML='<b>Tip · '+t.t+'</b>'+t.msg+'<button class="x" title="Dismiss">✕</button><button class="off">Turn off tips</button>';}
+  el.style.display=t&&!document.querySelector('.overlay[style*="flex"]')?'block':'none';}
+
+// ---------- air bar, armour HUD, low-HP pulse + heartbeat ----------
+let airEl,armEl,lowEl,beatT=0,lowPhase=0;
+function b3HudEls(){if(airEl)return;airEl=document.createElement('div');airEl.id='airbar';airEl.innerHTML='<i></i>';armEl=document.createElement('div');armEl.id='armhud';lowEl=document.createElement('div');lowEl.id='lowhp';document.body.append(airEl,armEl,lowEl);}
+function heartbeat(){if(TEST)return;try{tone(62,44,0.09,0.22,'sine');setTimeout(()=>{try{tone(58,40,0.08,0.16,'sine');}catch(e){}},150);}catch(e){}}
+function syncB3Hud(dt){b3HudEls();const on=playing&&player.alive;
+  const a=player.air==null?AIR.max:player.air;airEl.style.display=on&&a<AIR.max-0.01?'block':'none';airEl.firstChild.style.width=(100*Math.max(0,a)/AIR.max).toFixed(1)+'%';
+  const cut=armorCut();armEl.style.display=on&&cut>0?'block':'none';armEl.textContent='🛡 '+[armor.helm?'Helm':'',armor.plate?'Plate':''].filter(Boolean).join('+')+' −'+Math.round(cut*100)+'%';
+  const f=player.hp/PS.maxHp,low=on&&f<0.3;
+  if(low){lowPhase+=dt;beatT-=dt;const per=0.55+f*1.6;if(beatT<=0){beatT=per;lowPhase=0;heartbeat();}
+    const pulse=Math.max(0,1-lowPhase/0.35);lowEl.style.opacity=(A11Y.flash?0.35+0.45*pulse:0.45).toFixed(2);}else{lowEl.style.opacity='0';beatT=0;}
+  lowEl.dataset.on=low?'1':'0';}
+
+// ---------- damage numbers (HUD toggle 'dmgnum') ----------
+const DMGN=[];let dmgnIdx=0;const _dv=new THREE.Vector3();
+function spawnDmgNum(x,y,z,n,head){if(!HUDOPT.dmgnum)return null;if(DMGN.length<14){const el=document.createElement('div');el.className='dmgn';document.body.appendChild(el);DMGN.push({el,t:0});}
+  const d=DMGN[dmgnIdx++%DMGN.length];d.x=x;d.y=y;d.z=z;d.t=0.8;d.el.textContent=Math.round(n);d.el.className='dmgn'+(head?' hd':'');d.el.style.display='block';return d;}
+on('zombieDamaged',(z,dd,head)=>{spawnDmgNum(z.pos.x+(Math.random()-0.5)*0.4,z.pos.y+(z.h||1.8)+0.2,z.pos.z,dd,head);});
+function syncDmgNums(dt){for(const d of DMGN){if(d.t<=0)continue;d.t-=dt;d.y+=dt*0.9;if(d.t<=0||!HUDOPT.dmgnum){d.el.style.display='none';d.t=0;continue;}
+  _dv.set(d.x,d.y,d.z).project(camera);if(_dv.z>1){d.el.style.display='none';continue;}d.el.style.display='block';
+  d.el.style.left=((_dv.x+1)/2*innerWidth).toFixed(0)+'px';d.el.style.top=((1-_dv.y)/2*innerHeight).toFixed(0)+'px';d.el.style.opacity=Math.min(1,d.t*2.5).toFixed(2);}}
+
+// ---------- beacon on the compass ----------
+let compB=null;
+function syncBeaconCompass(){const comp=document.getElementById('compass');if(!comp)return;if(!compB){compB=document.createElement('span');compB.id='compbeacon';comp.appendChild(compB);}
+  const b=playing&&HUDOPT.compass?nearestBeacon():null;if(!b){compB.style.display='none';return;}
+  const dx=b.x+0.5-player.pos.x,dz=b.z+0.5-player.pos.z,bear=((Math.atan2(dx,-dz)*180/Math.PI)+360)%360,rel=((bear-heading()+540)%360)-180;
+  if(Math.abs(rel)>100){compB.style.display='none';return;}compB.style.display='block';compB.style.left=(150+rel/22.5*30-5).toFixed(0)+'px';compB.textContent='◆'+Math.round(Math.hypot(dx,dz))+'m';compB.dataset.rel=rel.toFixed(0);}
+
+// ---------- crafting search + quick-stack ----------
+let craftQuery='';
+function craftFilter(r){if(!craftQuery)return true;const q=craftQuery.toLowerCase();return (r.name||'').toLowerCase().includes(q)||(r.cat||'').includes(q);}
+(function initCraftExtras(){const rec=document.getElementById('recipes');if(!rec)return;const inp=document.createElement('input');inp.id='craftsearch';inp.type='search';inp.placeholder='Search recipes…';
+  inp.addEventListener('input',()=>{craftQuery=inp.value.trim();renderCraft();});inp.addEventListener('keydown',e=>e.stopPropagation());rec.parentNode.insertBefore(inp,rec);
+  const sp=document.getElementById('sortpack');if(sp){const q=document.createElement('button');q.id='quickstack';q.className='ctab';q.textContent='Quick-stack to chests';q.title='Move items that already exist in nearby chests (6 blocks)';
+    q.addEventListener('click',()=>{const r=quickStack();toast(r.moved?('Stacked '+r.moved+' item'+(r.moved>1?'s':'')+' into '+r.chests+' chest'+(r.chests>1?'s':'')):(r.chests?'Nothing to stack':'No chests nearby'));renderCraft();});sp.after(q);}})();
+
+// ---------- ambient day critters (Hearthlands): birds overhead + drifting insects ----------
+let crit=null,chirpT=3;
+function makeCritters(){const g=new THREE.Group();const birds=[];const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute([-0.5,0.15,0,0,0,0,0,0,0,0.5,0.15,0],3));
+  const bm=new THREE.LineBasicMaterial({color:0x1a1a1a,fog:true});for(let i=0;i<6;i++){const l=new THREE.LineSegments(bg,bm);l.scale.setScalar(1.4);l.userData={a:Math.random()*6.28,r:14+Math.random()*16,h:16+Math.random()*8,s:0.15+Math.random()*0.15,f:Math.random()*6};g.add(l);birds.push(l);}
+  const N=36,pg=new THREE.BufferGeometry(),pa=new Float32Array(N*3);pg.setAttribute('position',new THREE.BufferAttribute(pa,3));const seeds=[];for(let i=0;i<N;i++)seeds.push([Math.random()*16-8,Math.random()*16-8,Math.random()*6.28]);
+  const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xfff2a0,size:0.09,transparent:true,opacity:0.85,depthWrite:false}));g.add(pts);g.visible=false;scene.add(g);return {g,birds,pts,pa,seeds,t:0};}
+function crittersActive(){return playing&&player.alive&&nightFactor()<0.3&&ambienceZone()==='Hearthlands'&&WX.rain<0.5;}
+function syncCritters(dt){if(!crit)crit=makeCritters();const act=crittersActive();crit.g.visible=act;if(!act)return;crit.t+=dt;const P=player.pos;
+  for(const b of crit.birds){const u=b.userData;u.a+=dt*u.s;b.position.set(P.x+Math.cos(u.a)*u.r,P.y+u.h,P.z+Math.sin(u.a)*u.r);b.rotation.y=-u.a;b.scale.y=1.4*(0.5+0.5*Math.abs(Math.sin(crit.t*6+u.f)));}
+  for(let i=0;i<crit.seeds.length;i++){const s=crit.seeds[i],x=P.x+s[0]+Math.sin(crit.t*0.7+s[2])*1.2,z=P.z+s[1]+Math.cos(crit.t*0.6+s[2])*1.2;crit.pa[i*3]=x;crit.pa[i*3+2]=z;crit.pa[i*3+1]=heightAt(x,z)+1.2+Math.sin(crit.t*1.7+s[2])*0.5;}
+  crit.pts.geometry.attributes.position.needsUpdate=true;
+  chirpT-=dt;if(chirpT<=0){chirpT=4+Math.random()*6;if(!TEST){const f=2200+Math.random()*1400,n=2+(Math.random()*3|0);for(let k=0;k<n;k++)setTimeout(()=>{try{tone(f,f*1.25,0.05,0.025,'sine');}catch(e){}},k*110);}}}
+
+function syncB3(dt){syncTips(dt);syncB3Hud(dt);syncDmgNums(dt);syncBeaconCompass();syncCritters(dt);}
 
 // ===== client/input.js =====
 // ---------------- Input ----------------
@@ -8109,7 +8286,7 @@ function frame(now){
     updateMode(dt);updateCamp(dt);updateLandmarks(dt);updateStarfall(dt);updateMinimap(dt);updateMapMemory(dt);updateVoidFx(dt);updateCampView(dt);updateAutosave(dt);updateZombies(dt);updateProjectiles(dt);updateInteraction(dt);updateDoors(dt);perfWatch(dt);
   }
   updateAmbience(playing&&!paused&&!crafting?dt:0);updateMusic(dt,!playing||paused);
-  syncZombieViews(dt);syncEnemyViews(dt);syncFaunaViews(dt);syncB2Hud(dt);updateReload(dt);syncLureFx(dt);syncTrophyFx(dt);syncGrappleView(dt);syncCombatViews(dt);
+  syncZombieViews(dt);syncEnemyViews(dt);syncFaunaViews(dt);syncB2Hud(dt);syncB3(dt);if(playing&&player.alive)tickAir(dt);updateReload(dt);syncLureFx(dt);syncTrophyFx(dt);syncGrappleView(dt);syncCombatViews(dt);
   updateChunks(player.pos.x,player.pos.z,playing?4:24);
   updateParticles(dt);
   if(!window.GAME||!GAME.freezeFlash)flashT-=dt;if(!(window.GAME&&GAME.freezeFlash))tracerT-=dt;if(flashT<=0){flash.visible=false;flashLight.intensity=0;}
@@ -8160,6 +8337,8 @@ Object.defineProperties(window.GAME,Object.getOwnPropertyDescriptors({tickHunger
   get bed(){return bed;},set bed(v){bed=v;},bedValid,respawnPoint,stationOk,furnaceNear,set stationFree(v){STATION_FREE=!!v;},get stationFree(){return STATION_FREE;},get lastHurtBy(){return lastHurtBy;},
   hotbarSwipe,touchReload,onLadder,renderHelpCard,longPressMove,setTimeOfDay,nightFactor,get worldTime(){return worldTime;},AUTO_Q,COARSE_PTR,get curPR(){return curPR;},get RD(){return RD;},LONG_PRESS_MS}));
 if(TEST){FAUNA_ON=false;MAG_ON=false;}
+for(const [k,v] of Object.entries({hurtPlayer,damageZombie,HUDOPT,renderCraft,itemCount,addItem,chests,getBlock,headInWater,selectSlot,PS,A11Y,addItem}))if(!(k in GAME))GAME[k]=v;if(!('slotIdx' in GAME))Object.defineProperty(GAME,'slotIdx',{get:()=>slot});if(!('difficultyId' in GAME))Object.defineProperty(GAME,'difficultyId',{get:()=>difficultyId});
+Object.assign(GAME,{armor,armorCut,tickAir,beacons,beaconList,nearestBeacon,quickStack,doorBreakable,placeDoor,TIPS,TIP_LIST,currentTip,dismissTip,setTipsOff,resetTips,syncTips,spawnDmgNum,DMGN,craftFilter,setCraftQuery:q=>{craftQuery=q;},crittersActive,AIR,ARMOR,headInWater,drawLogo});
 Object.defineProperties(window.GAME,Object.getOwnPropertyDescriptors({get faunaOn(){return FAUNA_ON;},set faunaOn(v){FAUNA_ON=!!v;},trySpawnHerd,updateZombies,HUDOPT,setHudOpt,WX,setRain,sortChest,chestRibbons,ACH,ACHIEVEMENTS,unlockAch,achBump,startReload,canReload,magLoaded,magSize,reloadAction,seedWanted,hashSeed,seedReload,renderSettings:()=>renderSettings(),get magOn(){return MAG_ON;},set magOn(v){MAG_ON=!!v;},get reloadT(){return reloadT;},setSign,signAt,signs,editSign,softLanding,signMeshes,get day(){return day;},set day(v){day=v;}}));
 })();
 </script>
